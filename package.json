@@ -1,6 +1,6 @@
 {
   "name": "mon-launcher-mc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Launcher Minecraft personnalisé avec support moddé et connexion Microsoft",
   "main": "main.js",
   "scripts": {
@@ -30,6 +30,7 @@
   "build": {
     "appId": "com.monlauncher.mc",
     "productName": "Mon Launcher MC",
+    "artifactName": "Mon-Launcher-MC-Setup-${version}.${ext}",
     "files": [
       "**/*",
       "!node_modules/**/*.md",
