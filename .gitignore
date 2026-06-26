@@ -1,0 +1,6 @@
+node_modules
+dist
+.mon-launcher
+_tmp_*.js
+*.patch.txt
+mods/Pixelmon-1.21.1-9.3.16-universal (1).jar

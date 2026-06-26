@@ -1,0 +1,17 @@
+appId: com.monlauncher.mc
+productName: Mon Launcher MC
+directories:
+  output: dist
+files:
+  - '**/*'
+  - '!node_modules/**/*.md'
+  - '!node_modules/**/test/**'
+win:
+  target:
+    - nsis
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true

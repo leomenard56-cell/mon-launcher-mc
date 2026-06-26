@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mon Launcher Custom</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #18181c; color: #fff; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 260px; background: #111114; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #222; }
+        .profile-card { display: flex; align-items: center; background: #1a1a1e; padding: 12px; border-radius: 8px; margin-bottom: 25px; }
+        .avatar { width: 40px; height: 40px; background: #333; border-radius: 6px; margin-right: 12px; background-image: url('https://minotar.net/helm/Steve/40.png'); background-size: cover; }
+        .profile-info h3 { font-size: 14px; color: #fff; }
+        .profile-info p { font-size: 11px; color: #aaa; font-weight: bold; text-transform: uppercase; }
+        .shop-section { flex-grow: 1; }
+        .shop-title { font-size: 12px; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 15px; letter-spacing: 1px; }
+        .btn-connexion { width: 100%; padding: 12px; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
+        .btn-connexion:hover { transform: translateY(-1px); filter: brightness(110%); }
+        .btn-play { width: 100%; padding: 16px; background: #ff5500; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 15px rgba(255, 85, 0, 0.2); }
+        .btn-play:hover { background: #ff661a; transform: translateY(-2px); }
+        .btn-play:disabled { background: #333; color: #666; cursor: not-allowed; box-shadow: none; transform: none; }
+        .content { flex-grow: 1; padding: 40px; display: flex; flex-direction: column; background: radial-gradient(circle at top right, #1f1625, #141416); overflow-y: auto; }
+        .header-news { font-size: 28px; font-weight: bold; margin-bottom: 30px; }
+        .card-news { background: #111114; border-radius: 12px; padding: 25px; border: 1px solid #222; max-width: 1200px; }
+        .news-meta { font-size: 12px; color: #666; margin-bottom: 10px; }
+        .news-meta span { color: #ff5500; font-weight: bold; }
+        .card-news h2 { font-size: 22px; margin-bottom: 15px; color: #fff; }
+        .card-news p { color: #aaa; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+        .news-image { width: 100%; height: 350px; background: #222 url('https://minecraft.fr/wp-content/uploads/2023/07/neoforge-minecraft.jpg') center/cover; border-radius: 8px; }
+        .progress-container { width: 100%; background: #222; border-radius: 4px; margin-top: 15px; display: none; height: 6px; overflow: hidden; }
+        .progress-bar { width: 0%; height: 100%; background: #ff5500; transition: width 0.1s ease; }
+        .download-infos { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-top: 6px; }
+        #status-text { font-size: 11px; color: #aaa; margin-top: 6px; text-align: center; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div>
+            <div class="profile-card">
+                <div class="avatar" id="playerAvatar"></div>
+                <div class="profile-info">
+                    <h3 id="playerName">Non Connecté</h3>
+                    <p id="playerStatus">En attente</p>
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <div class="shop-title">Connexion rapide</div>
+                <div style="background: #16161a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #222;">
+                    <div style="font-size: 11px; color: #555; margin-bottom: 8px; text-transform: uppercase;">Mode Hors-ligne</div>
+                    <input type="text" id="pseudoInput" placeholder="Entrez votre pseudo" style="width: 100%; padding: 12px; border-radius: 6px; border: none; background: #222; color: white; margin-bottom: 12px; font-size: 13px;">
+                    <button id="btnCrack" class="btn-connexion" style="background: #2ec4b6;"><i class="fa-solid fa-user-ghost" style="margin-right: 8px;"></i>Se connecter (Crack)</button>
+                </div>
+
+                <div style="background: #16161a; padding: 15px; border-radius: 8px; border: 1px solid #222;">
+                    <div style="font-size: 11px; color: #555; margin-bottom: 8px; text-transform: uppercase;">Compte Premium</div>
+                    <button id="btnMicrosoft" class="btn-connexion" style="background: #0078d4;"><i class="fa-brands fa-windows" style="margin-right: 8px;"></i>Connexion Microsoft</button>
+                    <button id="btnLogout" class="btn-connexion" style="background: #e63946; display: none;"><i class="fa-solid fa-right-from-bracket" style="margin-right: 8px;"></i>Déconnexion</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="launchZone" style="display: none;">
+            <button id="checkUpdateBtn" class="btn-connexion" style="width: 100%; margin-bottom: 12px; background: #3b82f6;"><i class="fa-solid fa-cloud-arrow-down" style="margin-right: 8px;"></i>Vérifier les mises à jour</button>
+            <button id="downloadUpdateBtn" class="btn-connexion" style="width: 100%; margin-bottom: 12px; background: #16a34a; display:none;"><i class="fa-solid fa-arrow-down-to-line" style="margin-right: 8px;"></i>Télécharger la mise à jour</button>
+            <div id="updateInfo" style="font-size: 12px; color: #aaa; margin-bottom: 12px; min-height: 32px;">
+                Aucune vérification de mise à jour.
+            </div>
+            <button id="installModsBtn" class="btn-connexion" style="width: 100%; margin-bottom: 12px; background: #6a5acd;"><i class="fa-solid fa-box-open" style="margin-right: 8px;"></i>Installer des mods</button>
+            <div id="modStatus" style="font-size: 12px; color: #aaa; margin-bottom: 12px; min-height: 32px;">
+                Aucune action mod installée.
+            </div>
+            <label style="display:flex; align-items:center; gap:10px; margin-bottom: 12px; font-size: 13px; color: #ccc;">
+                <input type="checkbox" id="moddedCheckbox" style="width:16px; height:16px;"> Lancer en mode moddé (Forge)
+            </label>
+            <button id="downloadDepsBtn" class="btn-connexion" style="width: 100%; margin-bottom: 12px; background: #2e86de;"><i class="fa-solid fa-download" style="margin-right: 8px;"></i>Télécharger Java / NeoForge</button>
+            <button id="playBtn" class="btn-play">Jouer</button>
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="download-infos">
+                <span id="downloadSize">0 Mo / 0 Mo</span>
+                <span id="downloadSpeed">0 Mo/s</span>
+            </div>
+            <div id="status-text">Prêt à l'action</div>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="header-news">Actualités</div>
+        <div class="card-news">
+            <div class="news-meta">Par <span>Modérateur</span> • 19 Juin 2026</div>
+            <h2>Ouverture du serveur : Version 1.21.1 NeoForge !</h2>
+            <p>Bienvenue sur notre tout nouveau launcher. Préparez vos pioches, rejoignez le serveur dès maintenant !</p>
+            <div class="news-image"></div>
+        </div>
+    </div>
+
+    <!-- Modal device-code -->
+    <div id="deviceModal" style="display:none; position:fixed; right:20px; top:20px; background:#111; border:1px solid #222; padding:16px; border-radius:8px; width:320px; z-index:9999; box-shadow:0 8px 30px rgba(0,0,0,0.6);">
+        <div style="font-weight:bold; margin-bottom:8px;">Connexion Microsoft (device)</div>
+        <div id="deviceText" style="font-size:13px; color:#ccc; margin-bottom:12px;">Suivez les instructions...</div>
+        <div style="display:flex; gap:8px;">
+            <button id="openBrowserBtn" class="btn-connexion" style="flex:1; background:#2ec4b6;">Ouvrir le navigateur</button>
+            <button id="closeDeviceModal" class="btn-connexion" style="flex:0 0 auto; background:#555;">Fermer</button>
+        </div>
+    </div>
+
+    <script>
+        const playBtn = document.getElementById('playBtn'), progressContainer = document.getElementById('progressContainer'), progressBar = document.getElementById('progressBar'), statusText = document.getElementById('status-text'), downloadSize = document.getElementById('downloadSize'), downloadSpeed = document.getElementById('downloadSpeed'), playerNameH3 = document.getElementById('playerName'), playerAvatarDiv = document.getElementById('playerAvatar'), playerStatusP = document.getElementById('playerStatus');
+        const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
+        const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
+
+        btnCrack.addEventListener('click', () => {
+            const pseudo = pseudoInput.value.trim();
+            if(pseudo.length < 3) return alert("Pseudo trop court !");
+            window.launcherAPI.setAuthData({ type: 'crack', pseudo: pseudo });
+            location.reload();
+        });
+
+        btnMicrosoft.addEventListener('click', () => {
+            try {
+                btnMicrosoft.disabled = true;
+                btnMicrosoft.innerText = "Ouverture...";
+                statusText.innerText = 'Ouverture du navigateur pour connexion...';
+                window.launcherAPI.loginMicrosoft();
+            } catch (e) {
+                btnMicrosoft.disabled = false;
+                btnMicrosoft.innerText = "Connexion Microsoft";
+                statusText.innerText = 'Erreur locale: ' + (e && e.message ? e.message : String(e));
+            }
+        });
+
+        btnLogout.addEventListener('click', () => { window.launcherAPI.logout(); location.reload(); });
+
+        window.launcherAPI.onMicrosoftSuccess((profile) => {
+            const displayName = profile.name || 'Utilisateur';
+            playerNameH3.innerText = displayName;
+            playerNameH3.style.color = "white";
+            playerAvatarDiv.style.backgroundImage = `url('https://minotar.net/helm/${displayName}/40.png')`;
+            btnMicrosoft.disabled = false;
+            btnMicrosoft.innerText = "Connecté !";
+            
+            if (profile.type === 'crack') {
+                playerStatusP.innerText = "Mode Hors-ligne";
+                playerStatusP.style.color = "#2ec4b6"; 
+            } else {
+                playerStatusP.innerText = "Compte Premium Vérifié";
+                playerStatusP.style.color = "#0078d4"; 
+            }
+            btnLogout.style.display = 'block';
+            launchZone.style.display = 'block';
+        });
+
+        // Afficher les instructions device-code si envoyées depuis le main
+        window.launcherAPI.onMicrosoftDevice((data) => {
+            if (!data) return;
+            const code = data.code || data.user_code || data.userCode || '—';
+            const uri = data.verificationUri || data.verification_uri || data.verificationUrl || 'https://microsoft.com/devicelogin';
+            statusText.innerText = `Ouvrez ${uri} et entrez le code : ${code}`;
+            // Afficher modale compacte et proposer d'ouvrir le navigateur manuellement
+            const deviceModal = document.getElementById('deviceModal');
+            const deviceText = document.getElementById('deviceText');
+            const openBrowserBtn = document.getElementById('openBrowserBtn');
+            const closeDeviceModal = document.getElementById('closeDeviceModal');
+            deviceText.innerText = `Ouvrez ${uri} et entrez le code : ${code}`;
+            deviceModal.style.display = 'block';
+            btnMicrosoft.disabled = false;
+            btnMicrosoft.innerText = 'Connexion Microsoft';
+
+            openBrowserBtn.onclick = () => {
+                if (window.launcherAPIOpen && window.launcherAPIOpen.openExternal) window.launcherAPIOpen.openExternal(uri);
+            };
+            closeDeviceModal.onclick = () => { deviceModal.style.display = 'none'; };
+        });
+
+        // Réactive le bouton Microsoft si l'authentification échoue
+        window.launcherAPI.onMicrosoftFailed((errorMessage) => {
+            btnMicrosoft.disabled = false;
+            btnMicrosoft.innerText = "Connexion Microsoft";
+            statusText.innerText = 'Erreur connexion Microsoft : ' + (errorMessage || 'Échec inconnu');
+        });
+
+        installModsBtn.addEventListener('click', async () => {
+            installModsBtn.disabled = true;
+            installModsBtn.innerText = 'Sélection...';
+            const result = await window.launcherAPI.selectMods();
+            installModsBtn.disabled = false;
+            installModsBtn.innerText = 'Installer des mods';
+            if (result && result.canceled) {
+                modStatus.innerText = 'Installation de mods annulée.';
+                return;
+            }
+            if (result && result.installed && result.installed.length) {
+                modStatus.innerText = `Mods installés : ${result.installed.map(m => m.name).join(', ')}`;
+            } else {
+                modStatus.innerText = 'Aucun mod installé.';
+            }
+        });
+
+        checkUpdateBtn.addEventListener('click', async () => {
+            checkUpdateBtn.disabled = true;
+            checkUpdateBtn.innerText = 'Vérification...';
+            updateInfo.innerText = 'Vérification des mises à jour...';
+            downloadUpdateBtn.style.display = 'none';
+            const result = await window.launcherAPI.checkForUpdates();
+            checkUpdateBtn.disabled = false;
+            checkUpdateBtn.innerText = 'Vérifier les mises à jour';
+            if (!result || !result.success) {
+                updateInfo.innerText = 'Erreur de mise à jour : ' + (result && result.message ? result.message : 'Échec inconnu');
+                return;
+            }
+            if (result.available) {
+                updateInfo.innerText = `Nouvelle version disponible : ${result.latestVersion} (actuelle ${result.currentVersion}). Notes : ${result.notes}`;
+                downloadUpdateBtn.style.display = 'block';
+                downloadUpdateBtn.dataset.url = result.downloadUrl;
+            } else {
+                updateInfo.innerText = `Aucune mise à jour trouvée. Version actuelle : ${result.currentVersion}`;
+            }
+        });
+
+        downloadUpdateBtn.addEventListener('click', async () => {
+            const url = downloadUpdateBtn.dataset.url;
+            if (!url) return;
+            downloadUpdateBtn.disabled = true;
+            downloadUpdateBtn.innerText = 'Téléchargement...';
+            statusText.innerText = 'Téléchargement de la mise à jour en cours...';
+            const result = await window.launcherAPI.downloadUpdate(url);
+            downloadUpdateBtn.disabled = false;
+            downloadUpdateBtn.innerText = 'Télécharger la mise à jour';
+            if (!result || !result.success) {
+                statusText.innerText = 'Erreur téléchargement mise à jour : ' + (result && result.message ? result.message : 'Échec inconnu');
+                return;
+            }
+            statusText.innerText = 'Mise à jour téléchargée : ' + result.installerPath;
+            updateInfo.innerText = 'Installez la nouvelle version dans le dossier '.concat(result.installerPath);
+        });
+
+        downloadDepsBtn.addEventListener('click', async () => {
+            downloadDepsBtn.disabled = true;
+            downloadDepsBtn.innerText = 'Téléchargement...';
+            statusText.innerText = 'Téléchargement des dépendances en cours...';
+            const result = await window.launcherAPI.downloadDependencies(moddedCheckbox.checked);
+            downloadDepsBtn.disabled = false;
+            downloadDepsBtn.innerText = 'Télécharger Java / NeoForge';
+            if (!result || !result.success) {
+                statusText.innerText = 'Erreur téléchargement : ' + (result && result.error ? result.error : 'Échec inconnu');
+                return;
+            }
+            if (result.installedJava) {
+                statusText.innerText = `Java installé dans : ${result.javaPath}`;
+            } else {
+                statusText.innerText = `Java détecté : ${result.javaPath}`;
+            }
+            if (result.forgePath) {
+                statusText.innerText += ` | NeoForge prêt : ${result.forgePath}`;
+            }
+        });
+
+        playBtn.addEventListener('click', () => {
+            playBtn.disabled = true;
+            playBtn.innerText = "Lancement...";
+            progressContainer.style.display = 'block';
+            statusText.innerText = 'Préparation du jeu...';
+            window.launcherAPI.playGame(moddedCheckbox.checked);
+        });
+
+        window.launcherAPI.onProgress((data) => {
+            let currentVal = parseInt(data.current || data.task), totalVal = parseInt(data.total);
+            if (isNaN(currentVal) || totalVal <= 0) return;
+            let percentage = Math.min(Math.round((currentVal / totalVal) * 100), 100);
+            progressBar.style.width = percentage + '%';
+            if (totalVal > 50000) downloadSize.innerText = `${(currentVal/1048576).toFixed(1)} Mo / ${(totalVal/1048576).toFixed(1)} Mo`;
+        });
+
+        window.launcherAPI.onLog((log) => { statusText.innerText = log; });
+
+        window.launcherAPI.onModsInstalled((data) => {
+            if (!data || !data.installed || !data.installed.length) return;
+            modStatus.innerText = `Mods installés : ${data.installed.map(m => m.name).join(', ')}`;
+        });
+    </script>
+</body>
+</html>
