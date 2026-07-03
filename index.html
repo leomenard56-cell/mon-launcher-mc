@@ -27,9 +27,37 @@
         .card-news h2 { font-size: 22px; margin-bottom: 15px; color: #fff; }
         .card-news p { color: #aaa; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
         .news-image { width: 100%; height: 350px; background: #222 url('https://minecraft.fr/wp-content/uploads/2023/07/neoforge-minecraft.jpg') center/cover; border-radius: 8px; }
+        .tab-bar { display: flex; gap: 10px; margin-bottom: 18px; }
+        .tab-btn { padding: 12px 18px; border: none; border-radius: 999px; background: #222; color: #cfcfd6; font-weight: 700; cursor: pointer; transition: 0.2s; }
+        .tab-btn.active { background: #ff5500; color: #fff; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .panel-card { background: #111114; border: 1px solid #222; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+        .mods-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
+        .mods-list { max-height: 360px; overflow: auto; display: grid; gap: 10px; }
+        .mod-item { background: #15151a; border: 1px solid #242430; border-radius: 12px; padding: 12px; }
+        .mod-item h4 { font-size: 14px; margin-bottom: 4px; }
+        .mod-item p { font-size: 12px; color: #9b9ba6; margin: 0; word-break: break-all; }
+        .cf-browser { display: grid; grid-template-columns: 280px 1fr; gap: 14px; }
+        .cf-filter-group { border-top: 1px solid #242430; padding-top: 12px; margin-top: 12px; }
+        .cf-filter-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; color: #c8c8d2; }
+        .cf-filter-item input, .cf-filter-item select { accent-color: #ff5500; }
+        .cf-toolbar { display: grid; grid-template-columns: 1.2fr 0.8fr 0.7fr 0.9fr auto auto auto auto; gap: 8px; margin-bottom: 10px; }
+        .cf-control { padding: 10px; border-radius: 8px; border: 1px solid #2e2e3f; background: #121220; color: #fff; }
+        .cf-results { max-height: 490px; overflow: auto; display: grid; gap: 10px; }
+        .cf-card { display: grid; grid-template-columns: 84px 1fr; gap: 12px; background: #15151a; border: 1px solid #242430; border-radius: 12px; padding: 10px; }
+        .cf-logo { width: 84px; height: 84px; border-radius: 8px; background: #0f0f18 center/cover no-repeat; border: 1px solid #2e2e3f; }
+        .cf-meta { font-size: 12px; color: #9b9ba6; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+        .cf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        @media (max-width: 1200px) {
+            .cf-browser { grid-template-columns: 1fr; }
+            .cf-toolbar { grid-template-columns: 1fr 1fr; }
+        }
+        .small-note { font-size: 12px; color: #a8a8b3; line-height: 1.45; }
         .progress-container { width: 100%; background: #222; border-radius: 4px; margin-top: 15px; display: none; height: 6px; overflow: hidden; }
         .progress-bar { width: 0%; height: 100%; background: #ff5500; transition: width 0.1s ease; }
         .download-infos { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-top: 6px; }
+        .auth-status { font-size: 12px; color: #fca311; background: #1a1a1e; border: 1px solid #2a2a2f; border-radius: 8px; padding: 10px; margin-top: 10px; min-height: 42px; line-height: 1.35; white-space: pre-line; }
         #status-text { font-size: 11px; color: #aaa; margin-top: 6px; text-align: center; font-style: italic; }
     </style>
 </head>
@@ -57,6 +85,7 @@
                     <div style="font-size: 11px; color: #555; margin-bottom: 8px; text-transform: uppercase;">Compte Premium</div>
                     <button id="btnMicrosoft" class="btn-connexion" style="background: #0078d4;"><i class="fa-brands fa-windows" style="margin-right: 8px;"></i>Connexion Microsoft</button>
                     <button id="btnLogout" class="btn-connexion" style="background: #e63946; display: none;"><i class="fa-solid fa-right-from-bracket" style="margin-right: 8px;"></i>Déconnexion</button>
+                    <div id="authStatus" class="auth-status">Aucun essai de connexion Microsoft.</div>
                 </div>
             </div>
         </div>
@@ -88,16 +117,144 @@
     </div>
 
     <div class="content">
-        <div class="header-news">Actualités</div>
-        <div class="card-news">
-            <div class="news-meta">Par <span>Modérateur</span> • 19 Juin 2026</div>
-            <h2>Ouverture du serveur : Version 1.21.1 NeoForge !</h2>
-            <p>Bienvenue sur notre tout nouveau launcher. Préparez vos pioches, rejoignez le serveur dès maintenant !</p>
-            <div class="news-image"></div>
+        <div class="tab-bar">
+            <button class="tab-btn active" id="tabNewsBtn">Actualités</button>
+            <button class="tab-btn" id="tabModsBtn">Mods / Packs</button>
+            <button class="tab-btn" id="tabCurseForgeBtn">CurseForge</button>
+            <button class="tab-btn" id="tabCustomPacksBtn">Mods Pack Personnaliser</button>
+        </div>
+
+        <div id="newsView" class="tab-panel active">
+            <div class="header-news">Actualités</div>
+            <div class="card-news">
+                <div class="news-meta">Par <span>Modérateur</span> • 19 Juin 2026</div>
+                <h2>Ouverture du serveur : Version 1.21.1 NeoForge !</h2>
+                <p>Bienvenue sur notre tout nouveau launcher. Préparez vos pioches, rejoignez le serveur dès maintenant !</p>
+                <div class="news-image"></div>
+            </div>
+        </div>
+
+        <div id="modsView" class="tab-panel">
+            <div class="header-news">Mods / Packs</div>
+            <div class="mods-grid">
+                <div class="panel-card">
+                    <h2 style="font-size:20px; margin-bottom:10px;">Mods installés</h2>
+                    <p class="small-note" style="margin-bottom:12px;">Ici tu vois les mods présents dans ton dossier du launcher. Les packs CurseForge importés extraient les dossiers <i>mods</i>, <i>config</i> et similaires.</p>
+                    <div class="mods-list" id="modsList"></div>
+                </div>
+                <div>
+                    <div class="panel-card">
+                        <h2 style="font-size:20px; margin-bottom:10px;">Gestion des packs</h2>
+                        <button id="refreshModsBtn" class="btn-connexion" style="background:#3b82f6;">Rafraîchir la liste</button>
+                        <button id="importCurseForgeBtn" class="btn-connexion" style="background:#6a5acd;">Importer un pack CurseForge (.zip)</button>
+                        <button id="exportModPackBtn" class="btn-connexion" style="background:#16a34a;">Créer un pack local (.zip)</button>
+                        <button id="installSingleModsBtn" class="btn-connexion" style="background:#2e86de;">Installer des mods individuels</button>
+                    </div>
+                    <div class="panel-card">
+                        <h2 style="font-size:20px; margin-bottom:10px;">Infos</h2>
+                        <p class="small-note" id="modsInfo">Importe un zip CurseForge ou exporte ton pack actuel pour sauvegarde.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="curseForgeView" class="tab-panel">
+            <div class="header-news">CurseForge Explorer</div>
+            <div class="cf-browser">
+                <div class="panel-card" style="height: fit-content;">
+                    <h2 style="font-size:18px; margin-bottom:8px;">Filtres</h2>
+                    <div class="small-note">Affinage de la recherche CurseForge</div>
+                    <div class="cf-filter-group">
+                        <div class="small-note" style="margin-bottom:8px;">Type</div>
+                        <label class="cf-filter-item"><input type="radio" name="cfTypeRadio" value="mods" checked> Mods</label>
+                        <label class="cf-filter-item"><input type="radio" name="cfTypeRadio" value="modpacks"> Modpacks</label>
+                    </div>
+                    <div class="cf-filter-group">
+                        <div class="small-note" style="margin-bottom:8px;">Version Minecraft</div>
+                        <input id="cfVersionInput" class="cf-control" type="text" value="1.21.1">
+                    </div>
+                    <div class="cf-filter-group">
+                        <div class="small-note" style="margin-bottom:8px;">Loader</div>
+                        <select id="cfLoaderSelect" class="cf-control">
+                            <option value="0">Tous</option>
+                            <option value="1">Forge</option>
+                            <option value="4">Fabric</option>
+                            <option value="6">NeoForge</option>
+                        </select>
+                    </div>
+                    <div class="cf-filter-group">
+                        <div class="small-note" style="margin-bottom:8px;">Categorie</div>
+                        <select id="cfCategorySelect" class="cf-control">
+                            <option value="0">Toutes</option>
+                            <option value="406">API and Library</option>
+                            <option value="417">World Gen</option>
+                            <option value="409">Cosmetic</option>
+                            <option value="4558">Adventure and RPG</option>
+                            <option value="434">Magic</option>
+                            <option value="412">Technology</option>
+                            <option value="4484">Storage</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <div class="panel-card" style="margin-bottom: 14px;">
+                        <div class="cf-toolbar">
+                            <input id="cfSearchInput" class="cf-control" type="text" placeholder="Search for Minecraft mods...">
+                            <select id="cfSortSelect" class="cf-control">
+                                <option value="relevance">Relevance</option>
+                                <option value="popular">Popularite</option>
+                                <option value="newest">Plus recent</option>
+                            </select>
+                            <select id="cfPageSizeSelect" class="cf-control">
+                                <option value="20">20</option>
+                                <option value="30">30</option>
+                                <option value="50">50</option>
+                            </select>
+                            <button id="cfSearchBtn" class="btn-connexion" style="margin:0; background:#ff5500;">Rechercher</button>
+                            <button id="cfCreatePublishBtn" class="btn-connexion" style="margin:0; background:#16a34a;">Creer + Publier pack</button>
+                            <button id="cfPrevBtn" class="btn-connexion" style="margin:0; background:#2e2e45; width:auto; padding:10px 14px;">&lt;</button>
+                            <button id="cfNextBtn" class="btn-connexion" style="margin:0; background:#2e2e45; width:auto; padding:10px 14px;">&gt;</button>
+                            <div id="cfPageLabel" class="small-note" style="align-self:center;">Page 1</div>
+                        </div>
+                        <p class="small-note" id="cfInfo">Ajoute ta clé API pour activer la recherche CurseForge.</p>
+                    </div>
+                    <div class="panel-card">
+                        <h2 style="font-size:20px; margin-bottom:10px;">Resultats <span id="cfTotalCount" style="font-size:13px; color:#a8a8b3;"></span></h2>
+                        <div class="cf-results" id="cfResults"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="customPacksView" class="tab-panel">
+            <div class="header-news">Mods Pack Personnaliser</div>
+            <div class="mods-grid">
+                <div class="panel-card">
+                    <h2 style="font-size:20px; margin-bottom:10px;">Créer mon modpack</h2>
+                    <input id="customPackNameInput" type="text" placeholder="Nom du pack" style="width:100%; padding:10px; border-radius:8px; border:1px solid #2e2e3f; background:#121220; color:#fff; margin-bottom:10px;">
+                    <input id="customPackVersionInput" type="text" value="1.0.0" placeholder="Version" style="width:100%; padding:10px; border-radius:8px; border:1px solid #2e2e3f; background:#121220; color:#fff; margin-bottom:10px;">
+                    <input id="customPackManifestInput" type="text" placeholder="URL manifest updates (optionnel)" style="width:100%; padding:10px; border-radius:8px; border:1px solid #2e2e3f; background:#121220; color:#fff; margin-bottom:12px;">
+                    <button id="createCustomPackBtn" class="btn-connexion" style="background:#16a34a;">Créer le pack</button>
+                    <p class="small-note">Manifest en ligne attendu: {"version":"1.0.1","downloadUrl":"https://...zip","notes":"..."}</p>
+                </div>
+                <div>
+                    <div class="panel-card">
+                        <h2 style="font-size:20px; margin-bottom:10px;">Mes packs personnalisés</h2>
+                        <div style="display:flex; gap:8px; margin-bottom:10px;">
+                            <button id="refreshCustomPacksBtn" class="btn-connexion" style="margin:0; background:#3b82f6;">Rafraîchir</button>
+                            <button id="checkCustomUpdatesBtn" class="btn-connexion" style="margin:0; background:#ff5500;">Vérifier MAJ en ligne</button>
+                        </div>
+                        <div class="mods-list" id="customPacksList"></div>
+                    </div>
+                    <div class="panel-card">
+                        <h2 style="font-size:20px; margin-bottom:10px;">Infos</h2>
+                        <p class="small-note" id="customPacksInfo">Crée ton pack, ajoute une URL de manifest, puis vérifie/installe les mises à jour en ligne.</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Modal device-code -->
     <div id="deviceModal" style="display:none; position:fixed; right:20px; top:20px; background:#111; border:1px solid #222; padding:16px; border-radius:8px; width:320px; z-index:9999; box-shadow:0 8px 30px rgba(0,0,0,0.6);">
         <div style="font-weight:bold; margin-bottom:8px;">Connexion Microsoft (device)</div>
         <div id="deviceText" style="font-size:13px; color:#ccc; margin-bottom:12px;">Suivez les instructions...</div>
@@ -110,37 +267,392 @@
     <script>
         const playBtn = document.getElementById('playBtn'), progressContainer = document.getElementById('progressContainer'), progressBar = document.getElementById('progressBar'), statusText = document.getElementById('status-text'), downloadSize = document.getElementById('downloadSize'), downloadSpeed = document.getElementById('downloadSpeed'), playerNameH3 = document.getElementById('playerName'), playerAvatarDiv = document.getElementById('playerAvatar'), playerStatusP = document.getElementById('playerStatus');
         const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
+        const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
+        const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
+        const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfResults = document.getElementById('cfResults');
         const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
+        const authStatus = document.getElementById('authStatus');
+        let microsoftLoginInProgress = false;
+        let lastDownloadTick = { time: 0, bytes: 0 };
+        let hasByteBasedDownload = false;
+        const curseForgeState = { index: 0, pageSize: 20, totalCount: 0, type: 'mods' };
 
-        btnCrack.addEventListener('click', () => {
-            const pseudo = pseudoInput.value.trim();
-            if(pseudo.length < 3) return alert("Pseudo trop court !");
-            window.launcherAPI.setAuthData({ type: 'crack', pseudo: pseudo });
-            location.reload();
+        const setAuthStatus = (text, color) => {
+            authStatus.innerText = text;
+            if (color) authStatus.style.color = color;
+        };
+
+        const setTab = (name) => {
+            const isNews = name === 'news';
+            const isMods = name === 'mods';
+            const isCurseForge = name === 'curseforge';
+            const isCustom = name === 'custom';
+            newsView.classList.toggle('active', isNews);
+            modsView.classList.toggle('active', isMods);
+            curseForgeView.classList.toggle('active', isCurseForge);
+            customPacksView.classList.toggle('active', isCustom);
+            tabNewsBtn.classList.toggle('active', isNews);
+            tabModsBtn.classList.toggle('active', isMods);
+            tabCurseForgeBtn.classList.toggle('active', isCurseForge);
+            tabCustomPacksBtn.classList.toggle('active', isCustom);
+        };
+
+        const renderModsList = (mods) => {
+            if (!mods || !mods.length) {
+                modsList.innerHTML = '<div class="mod-item"><h4>Aucun mod installé</h4><p>Ajoute un fichier .jar/.zip ou importe un pack CurseForge.</p></div>';
+                return;
+            }
+            modsList.innerHTML = mods.map(mod => `
+                <div class="mod-item">
+                    <h4>${mod.name}</h4>
+                    <p>${(mod.size / 1048576).toFixed(2)} Mo</p>
+                    <p>${new Date(mod.modified).toLocaleString()}</p>
+                </div>
+            `).join('');
+        };
+
+        const refreshModsList = async () => {
+            const result = await window.launcherAPI.listInstalledMods();
+            if (!result || !result.success) {
+                modsInfo.innerText = 'Impossible de charger la liste des mods : ' + (result && result.error ? result.error : 'Erreur inconnue');
+                renderModsList([]);
+                return;
+            }
+            modsInfo.innerText = `${result.mods.length} mod(s) dans ${result.folder}`;
+            renderModsList(result.mods);
+        };
+
+        const getSelectedCurseForgeType = () => {
+            const selected = document.querySelector('input[name="cfTypeRadio"]:checked');
+            return selected ? selected.value : 'mods';
+        };
+
+        const renderCurseForgeResults = (items, type, gameVersion) => {
+            if (!items || !items.length) {
+                cfResults.innerHTML = '<div class="mod-item"><h4>Aucun resultat</h4><p>Essaie un autre nom de mod/modpack.</p></div>';
+                return;
+            }
+            cfResults.innerHTML = items.map((item) => {
+                const safeSummary = (item.summary || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const actionLabel = type === 'modpacks' ? 'Installer ce modpack' : 'Installer ce mod';
+                const logoUrl = item.logoUrl || '';
+                return `
+                    <div class="cf-card">
+                        <div class="cf-logo" style="background-image:url('${logoUrl}');"></div>
+                        <div>
+                        <h4 style="font-size:18px; margin-bottom:4px;">${item.name}</h4>
+                        <p>${safeSummary || 'Sans description.'}</p>
+                        <div class="cf-meta">
+                            <span>${Number(item.downloadCount || 0).toLocaleString('fr-FR')} downloads</span>
+                            <span>${item.dateReleased || 'Date inconnue'}</span>
+                            <span>${gameVersion}</span>
+                        </div>
+                        <div class="cf-actions">
+                            <button class="btn-connexion cf-install-btn" data-project-id="${item.id}" data-type="${type}" data-version="${gameVersion}" style="margin:0; background:#ff5500;">${actionLabel}</button>
+                            <button class="btn-connexion cf-open-btn" data-url="${item.websiteUrl || ''}" style="margin:0; background:#3b82f6;">Voir la page</button>
+                        </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const refreshCurseForgeKeyStatus = async () => {
+            const keyStatus = await window.launcherAPI.getCurseForgeKeyStatus();
+            if (!keyStatus || !keyStatus.success) {
+                cfInfo.innerText = 'Impossible de vérifier la clé API CurseForge.';
+                return false;
+            }
+            if (!keyStatus.configured) {
+                cfInfo.innerText = 'Clé API absente. Colle ta clé dans: ' + keyStatus.keyFilePath;
+                return false;
+            }
+            cfInfo.innerText = 'Clé API détectée. Recherche active.';
+            return true;
+        };
+
+        const updateCurseForgePager = () => {
+            const page = Math.floor(curseForgeState.index / curseForgeState.pageSize) + 1;
+            const totalPages = Math.max(1, Math.ceil((curseForgeState.totalCount || 0) / curseForgeState.pageSize));
+            cfPageLabel.innerText = `Page ${page} / ${totalPages}`;
+            cfPrevBtn.disabled = curseForgeState.index <= 0;
+            cfNextBtn.disabled = page >= totalPages;
+            cfTotalCount.innerText = `(${Number(curseForgeState.totalCount || 0).toLocaleString('fr-FR')} projets)`;
+        };
+
+        const runCurseForgeSearch = async (keepPage = false) => {
+            curseForgeState.pageSize = Number(cfPageSizeSelect.value || 20);
+            if (!keepPage) curseForgeState.index = 0;
+            curseForgeState.type = getSelectedCurseForgeType();
+            cfSearchBtn.disabled = true;
+            cfSearchBtn.innerText = 'Recherche...';
+            cfInfo.innerText = 'Recherche CurseForge en cours...';
+            const result = await window.launcherAPI.searchCurseForge({
+                query: cfSearchInput.value.trim(),
+                type: curseForgeState.type,
+                gameVersion: cfVersionInput.value.trim() || '1.21.1',
+                modLoaderType: Number(cfLoaderSelect.value || 0),
+                categoryId: Number(cfCategorySelect.value || 0),
+                sortMode: cfSortSelect.value,
+                index: curseForgeState.index,
+                pageSize: curseForgeState.pageSize
+            });
+            cfSearchBtn.disabled = false;
+            cfSearchBtn.innerText = 'Rechercher';
+            if (!result || !result.success) {
+                cfInfo.innerText = 'Erreur CurseForge: ' + (result && result.error ? result.error : 'échec inconnu');
+                cfResults.innerHTML = '';
+                return;
+            }
+            curseForgeState.totalCount = Number(result.totalCount || result.count || 0);
+            curseForgeState.index = Number(result.index || 0);
+            cfInfo.innerText = `${result.count} résultat(s) affichés pour ${result.type} (${result.gameVersion}).`;
+            renderCurseForgeResults(result.items, result.type, result.gameVersion);
+            updateCurseForgePager();
+        };
+
+        const renderCustomPacks = (entries) => {
+            if (!entries || !entries.length) {
+                customPacksList.innerHTML = '<div class="mod-item"><h4>Aucun pack personnalisé</h4><p>Crée ton premier pack avec le formulaire à gauche.</p></div>';
+                return;
+            }
+            customPacksList.innerHTML = entries.map((entry) => {
+                const manifest = entry.manifestUrl ? entry.manifestUrl : 'Aucune URL de maj';
+                const updateLabel = entry.updateAvailable ? `Mise à jour dispo: ${entry.remoteVersion}` : 'A jour';
+                return `
+                    <div class="mod-item">
+                        <h4>${entry.name} <span style="color:#a8a8b3; font-size:12px;">v${entry.version || '0.0.0'}</span></h4>
+                        <p>${manifest}</p>
+                        <p>${updateLabel}${entry.error ? ' | ' + entry.error : ''}</p>
+                        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                            <button class="btn-connexion custom-pack-update-btn" data-id="${entry.id}" style="margin:0; background:#ff5500;">Installer MAJ</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const refreshCustomPacks = async () => {
+            const result = await window.launcherAPI.listCustomModpacks();
+            if (!result || !result.success) {
+                customPacksInfo.innerText = 'Impossible de charger les packs personnalisés: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                renderCustomPacks([]);
+                return;
+            }
+            customPacksInfo.innerText = `${result.entries.length} pack(s) perso enregistré(s).`;
+            renderCustomPacks(result.entries);
+        };
+
+        const checkCustomPacksUpdates = async () => {
+            checkCustomUpdatesBtn.disabled = true;
+            checkCustomUpdatesBtn.innerText = 'Vérification...';
+            const result = await window.launcherAPI.checkCustomModpacksUpdates();
+            checkCustomUpdatesBtn.disabled = false;
+            checkCustomUpdatesBtn.innerText = 'Vérifier MAJ en ligne';
+            if (!result || !result.success) {
+                customPacksInfo.innerText = 'Erreur vérification MAJ: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+            const updates = result.entries.filter(e => e.updateAvailable).length;
+            customPacksInfo.innerText = `${updates} mise(s) à jour disponible(s).`;
+            renderCustomPacks(result.entries);
+        };
+
+        tabNewsBtn.addEventListener('click', () => setTab('news'));
+        tabModsBtn.addEventListener('click', async () => {
+            setTab('mods');
+            await refreshModsList();
         });
+        tabCurseForgeBtn.addEventListener('click', async () => {
+            setTab('curseforge');
+            const ready = await refreshCurseForgeKeyStatus();
+            if (ready && !cfResults.innerHTML.trim()) {
+                await runCurseForgeSearch(false);
+            }
+        });
+        tabCustomPacksBtn.addEventListener('click', async () => {
+            setTab('custom');
+            await refreshCustomPacks();
+        });
+        cfSearchBtn.addEventListener('click', () => runCurseForgeSearch(false));
+        cfPageSizeSelect.addEventListener('change', () => runCurseForgeSearch(false));
+        cfSortSelect.addEventListener('change', () => runCurseForgeSearch(false));
+        cfLoaderSelect.addEventListener('change', () => runCurseForgeSearch(false));
+        cfCategorySelect.addEventListener('change', () => runCurseForgeSearch(false));
+        cfCreatePublishBtn.addEventListener('click', async () => {
+            cfCreatePublishBtn.disabled = true;
+            cfCreatePublishBtn.innerText = 'Export pack...';
+            cfInfo.innerText = 'Creation du modpack en cours...';
 
-        btnMicrosoft.addEventListener('click', () => {
-            try {
-                btnMicrosoft.disabled = true;
-                btnMicrosoft.innerText = "Ouverture...";
-                statusText.innerText = 'Ouverture du navigateur pour connexion...';
-                window.launcherAPI.loginMicrosoft();
-            } catch (e) {
-                btnMicrosoft.disabled = false;
-                btnMicrosoft.innerText = "Connexion Microsoft";
-                statusText.innerText = 'Erreur locale: ' + (e && e.message ? e.message : String(e));
+            const exportResult = await window.launcherAPI.exportModPack();
+            if (!exportResult || !exportResult.success) {
+                cfCreatePublishBtn.disabled = false;
+                cfCreatePublishBtn.innerText = 'Creer + Publier pack';
+                cfInfo.innerText = 'Creation modpack echouee: ' + (exportResult && exportResult.error ? exportResult.error : 'echec inconnu');
+                return;
+            }
+
+            const uploadUrl = 'https://www.curseforge.com/minecraft/modpacks/create';
+            if (window.launcherAPIOpen && window.launcherAPIOpen.openExternal) {
+                window.launcherAPIOpen.openExternal(uploadUrl);
+            }
+            cfCreatePublishBtn.disabled = false;
+            cfCreatePublishBtn.innerText = 'Creer + Publier pack';
+            cfInfo.innerText = `Pack cree: ${exportResult.filePath}. La page CurseForge est ouverte pour finaliser la publication.`;
+        });
+        document.querySelectorAll('input[name="cfTypeRadio"]').forEach((radio) => {
+            radio.addEventListener('change', () => runCurseForgeSearch(false));
+        });
+        cfPrevBtn.addEventListener('click', async () => {
+            curseForgeState.index = Math.max(0, curseForgeState.index - curseForgeState.pageSize);
+            await runCurseForgeSearch(true);
+        });
+        cfNextBtn.addEventListener('click', async () => {
+            curseForgeState.index = curseForgeState.index + curseForgeState.pageSize;
+            await runCurseForgeSearch(true);
+        });
+        cfSearchInput.addEventListener('keydown', async (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                await runCurseForgeSearch(false);
             }
         });
 
-        btnLogout.addEventListener('click', () => { window.launcherAPI.logout(); location.reload(); });
+        cfResults.addEventListener('click', async (event) => {
+            const openBtn = event.target.closest('.cf-open-btn');
+            if (openBtn) {
+                const url = openBtn.getAttribute('data-url');
+                if (url && window.launcherAPIOpen && window.launcherAPIOpen.openExternal) {
+                    window.launcherAPIOpen.openExternal(url);
+                }
+                return;
+            }
+            const installBtn = event.target.closest('.cf-install-btn');
+            if (!installBtn) return;
+
+            const projectId = Number(installBtn.getAttribute('data-project-id'));
+            const type = installBtn.getAttribute('data-type') || 'mods';
+            const gameVersion = installBtn.getAttribute('data-version') || (cfVersionInput.value.trim() || '1.21.1');
+            installBtn.disabled = true;
+            installBtn.innerText = 'Installation...';
+            cfInfo.innerText = `Installation CurseForge en cours (${projectId})...`;
+
+            const result = await window.launcherAPI.installCurseForgeProject({ projectId, type, gameVersion });
+            installBtn.disabled = false;
+            installBtn.innerText = type === 'modpacks' ? 'Installer ce modpack' : 'Installer ce mod';
+            if (!result || !result.success) {
+                cfInfo.innerText = 'Installation échouée: ' + (result && result.error ? result.error : 'échec inconnu');
+                return;
+            }
+
+            cfInfo.innerText = result.message || 'Installation terminée.';
+            await refreshModsList();
+        });
+
+        createCustomPackBtn.addEventListener('click', async () => {
+            createCustomPackBtn.disabled = true;
+            createCustomPackBtn.innerText = 'Création...';
+            const result = await window.launcherAPI.createCustomModpack({
+                name: customPackNameInput.value.trim() || 'Mon-Pack-Perso',
+                version: customPackVersionInput.value.trim() || '1.0.0',
+                manifestUrl: customPackManifestInput.value.trim()
+            });
+            createCustomPackBtn.disabled = false;
+            createCustomPackBtn.innerText = 'Créer le pack';
+            if (!result || !result.success) {
+                customPacksInfo.innerText = 'Création échouée: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+            customPacksInfo.innerText = `Pack créé: ${result.filePath}`;
+            await refreshCustomPacks();
+        });
+
+        refreshCustomPacksBtn.addEventListener('click', refreshCustomPacks);
+        checkCustomUpdatesBtn.addEventListener('click', checkCustomPacksUpdates);
+
+        customPacksList.addEventListener('click', async (event) => {
+            const btn = event.target.closest('.custom-pack-update-btn');
+            if (!btn) return;
+            const id = btn.getAttribute('data-id');
+            if (!id) return;
+            btn.disabled = true;
+            btn.innerText = 'Installation...';
+            const result = await window.launcherAPI.installCustomModpackUpdate({ id });
+            btn.disabled = false;
+            btn.innerText = 'Installer MAJ';
+            if (!result || !result.success) {
+                customPacksInfo.innerText = 'Installation MAJ échouée: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+            customPacksInfo.innerText = result.message || 'Mise à jour installée.';
+            await refreshCustomPacks();
+            await refreshModsList();
+        });
+
+        btnCrack.addEventListener('click', async () => {
+            const pseudo = pseudoInput.value.trim();
+            if(pseudo.length < 3) return alert("Pseudo trop court !");
+            btnCrack.disabled = true;
+            btnCrack.innerText = 'Connexion...';
+            try {
+                const result = await window.launcherAPI.setAuthData({ type: 'crack', pseudo: pseudo });
+                if (!result || !result.success) {
+                    statusText.innerText = 'Erreur connexion hors-ligne : ' + (result && result.error ? result.error : 'Échec inconnu');
+                    btnCrack.disabled = false;
+                    btnCrack.innerHTML = '<i class="fa-solid fa-user-ghost" style="margin-right: 8px;"></i>Se connecter (Crack)';
+                    return;
+                }
+                location.reload();
+            } catch (e) {
+                statusText.innerText = 'Erreur connexion hors-ligne : ' + (e && e.message ? e.message : String(e));
+                btnCrack.disabled = false;
+                btnCrack.innerHTML = '<i class="fa-solid fa-user-ghost" style="margin-right: 8px;"></i>Se connecter (Crack)';
+            }
+        });
+
+        btnMicrosoft.addEventListener('click', () => {
+            if (microsoftLoginInProgress) {
+                statusText.innerText = 'Connexion Microsoft déjà en cours...';
+                setAuthStatus('Connexion Microsoft déjà en cours...', '#fca311');
+                return;
+            }
+            try {
+                microsoftLoginInProgress = true;
+                btnMicrosoft.disabled = true;
+                btnMicrosoft.innerText = "Ouverture...";
+                statusText.innerText = 'Ouverture du navigateur pour connexion...';
+                setAuthStatus('Ouverture de la fenêtre Microsoft...', '#fca311');
+                window.launcherAPI.loginMicrosoft();
+            } catch (e) {
+                microsoftLoginInProgress = false;
+                btnMicrosoft.disabled = false;
+                btnMicrosoft.innerText = "Connexion Microsoft";
+                statusText.innerText = 'Erreur locale: ' + (e && e.message ? e.message : String(e));
+                setAuthStatus('Erreur locale: ' + (e && e.message ? e.message : String(e)), '#ff6b6b');
+            }
+        });
+
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await window.launcherAPI.logout();
+            } catch (e) {
+                statusText.innerText = 'Erreur déconnexion : ' + (e && e.message ? e.message : String(e));
+                return;
+            }
+            location.reload();
+        });
 
         window.launcherAPI.onMicrosoftSuccess((profile) => {
+            microsoftLoginInProgress = false;
             const displayName = profile.name || 'Utilisateur';
             playerNameH3.innerText = displayName;
             playerNameH3.style.color = "white";
             playerAvatarDiv.style.backgroundImage = `url('https://minotar.net/helm/${displayName}/40.png')`;
             btnMicrosoft.disabled = false;
             btnMicrosoft.innerText = "Connecté !";
+            setAuthStatus('Connecté en compte Premium: ' + displayName, '#2ec4b6');
+            const deviceModal = document.getElementById('deviceModal');
+            deviceModal.style.display = 'none';
             
             if (profile.type === 'crack') {
                 playerStatusP.innerText = "Mode Hors-ligne";
@@ -153,21 +665,26 @@
             launchZone.style.display = 'block';
         });
 
-        // Afficher les instructions device-code si envoyées depuis le main
         window.launcherAPI.onMicrosoftDevice((data) => {
             if (!data) return;
-            const code = data.code || data.user_code || data.userCode || '—';
+            const code = data.code || data.user_code || data.userCode || '-';
             const uri = data.verificationUri || data.verification_uri || data.verificationUrl || 'https://microsoft.com/devicelogin';
-            statusText.innerText = `Ouvrez ${uri} et entrez le code : ${code}`;
-            // Afficher modale compacte et proposer d'ouvrir le navigateur manuellement
             const deviceModal = document.getElementById('deviceModal');
             const deviceText = document.getElementById('deviceText');
             const openBrowserBtn = document.getElementById('openBrowserBtn');
             const closeDeviceModal = document.getElementById('closeDeviceModal');
-            deviceText.innerText = `Ouvrez ${uri} et entrez le code : ${code}`;
+
+            if (code && code !== '-') {
+                statusText.innerText = `Ouvrez ${uri} et entrez le code : ${code}`;
+                deviceText.innerText = `Ouvrez ${uri} et entrez le code : ${code}`;
+            } else {
+                statusText.innerText = 'Le navigateur va s\'ouvrir pour la connexion Microsoft.';
+                deviceText.innerText = `Cliquez sur "Ouvrir le navigateur" si la page ne s'ouvre pas automatiquement.\n${uri}`;
+            }
             deviceModal.style.display = 'block';
-            btnMicrosoft.disabled = false;
-            btnMicrosoft.innerText = 'Connexion Microsoft';
+            btnMicrosoft.disabled = true;
+            btnMicrosoft.innerText = 'Validation...';
+            setAuthStatus(deviceText.innerText, '#fca311');
 
             openBrowserBtn.onclick = () => {
                 if (window.launcherAPIOpen && window.launcherAPIOpen.openExternal) window.launcherAPIOpen.openExternal(uri);
@@ -177,12 +694,16 @@
 
         // Réactive le bouton Microsoft si l'authentification échoue
         window.launcherAPI.onMicrosoftFailed((errorMessage) => {
+            microsoftLoginInProgress = false;
             btnMicrosoft.disabled = false;
             btnMicrosoft.innerText = "Connexion Microsoft";
             statusText.innerText = 'Erreur connexion Microsoft : ' + (errorMessage || 'Échec inconnu');
+            setAuthStatus('Erreur connexion Microsoft : ' + (errorMessage || 'Échec inconnu'), '#ff6b6b');
+            const deviceModal = document.getElementById('deviceModal');
+            deviceModal.style.display = 'none';
         });
 
-        installModsBtn.addEventListener('click', async () => {
+        const installModsHandler = async () => {
             installModsBtn.disabled = true;
             installModsBtn.innerText = 'Sélection...';
             const result = await window.launcherAPI.selectMods();
@@ -197,6 +718,39 @@
             } else {
                 modStatus.innerText = 'Aucun mod installé.';
             }
+            await refreshModsList();
+        };
+
+        installModsBtn.addEventListener('click', installModsHandler);
+        installSingleModsBtn.addEventListener('click', installModsHandler);
+
+        refreshModsBtn.addEventListener('click', refreshModsList);
+
+        importCurseForgeBtn.addEventListener('click', async () => {
+            importCurseForgeBtn.disabled = true;
+            importCurseForgeBtn.innerText = 'Importation...';
+            const result = await window.launcherAPI.importCurseForgePack();
+            importCurseForgeBtn.disabled = false;
+            importCurseForgeBtn.innerText = 'Importer un pack CurseForge (.zip)';
+            if (!result || !result.success) {
+                modsInfo.innerText = 'Import pack échoué : ' + (result && result.error ? result.error : 'Échec inconnu');
+                return;
+            }
+            modsInfo.innerText = result.message;
+            await refreshModsList();
+        });
+
+        exportModPackBtn.addEventListener('click', async () => {
+            exportModPackBtn.disabled = true;
+            exportModPackBtn.innerText = 'Exportation...';
+            const result = await window.launcherAPI.exportModPack();
+            exportModPackBtn.disabled = false;
+            exportModPackBtn.innerText = 'Créer un pack local (.zip)';
+            if (!result || !result.success) {
+                modsInfo.innerText = 'Export pack échoué : ' + (result && result.error ? result.error : 'Échec inconnu');
+                return;
+            }
+            modsInfo.innerText = result.message;
         });
 
         checkUpdateBtn.addEventListener('click', async () => {
@@ -258,23 +812,87 @@
             }
         });
 
+        const resetPlayButton = () => {
+            playBtn.disabled = false;
+            playBtn.innerText = 'Jouer';
+        };
+
         playBtn.addEventListener('click', () => {
             playBtn.disabled = true;
             playBtn.innerText = "Lancement...";
             progressContainer.style.display = 'block';
             statusText.innerText = 'Préparation du jeu...';
+            downloadSize.innerText = '0 / 0 fichiers';
+            downloadSpeed.innerText = '0 Mo/s';
+            lastDownloadTick = { time: 0, bytes: 0 };
+            hasByteBasedDownload = false;
             window.launcherAPI.playGame(moddedCheckbox.checked);
         });
+
+        if (window.launcherAPIEvents && window.launcherAPIEvents.onLaunchFinished) {
+            window.launcherAPIEvents.onLaunchFinished((data) => {
+                resetPlayButton();
+                if (!data || data.success !== true) {
+                    statusText.innerText = 'Échec du lancement : ' + (data && data.error ? data.error : 'Erreur inconnue');
+                }
+            });
+        }
 
         window.launcherAPI.onProgress((data) => {
             let currentVal = parseInt(data.current || data.task), totalVal = parseInt(data.total);
             if (isNaN(currentVal) || totalVal <= 0) return;
             let percentage = Math.min(Math.round((currentVal / totalVal) * 100), 100);
             progressBar.style.width = percentage + '%';
-            if (totalVal > 50000) downloadSize.innerText = `${(currentVal/1048576).toFixed(1)} Mo / ${(totalVal/1048576).toFixed(1)} Mo`;
+
+            if (!hasByteBasedDownload) {
+                downloadSize.innerText = `${currentVal} / ${totalVal} fichiers`;
+                downloadSpeed.innerText = '--';
+            }
+
+            if (totalVal > 50000) {
+                downloadSize.innerText = `${(currentVal/1048576).toFixed(1)} Mo / ${(totalVal/1048576).toFixed(1)} Mo`;
+                hasByteBasedDownload = true;
+            }
         });
 
-        window.launcherAPI.onLog((log) => { statusText.innerText = log; });
+        window.launcherAPI.onDownloadStatus((data) => {
+            const current = Number(data && data.current ? data.current : 0);
+            const total = Number(data && data.total ? data.total : 0);
+            const now = Date.now();
+            const files = Number(data && data.files ? data.files : 0);
+
+            if (total > 0) {
+                const pct = Math.min(Math.round((current / total) * 100), 100);
+                progressBar.style.width = pct + '%';
+                downloadSize.innerText = `${(current / 1048576).toFixed(1)} Mo / ${(total / 1048576).toFixed(1)} Mo`;
+                hasByteBasedDownload = true;
+            } else if (current > 0) {
+                progressBar.style.width = '100%';
+                downloadSize.innerText = `${(current / 1048576).toFixed(1)} Mo / ?`;
+                hasByteBasedDownload = true;
+            } else if (!hasByteBasedDownload && files > 0) {
+                downloadSize.innerText = `${files} fichiers en cours...`;
+                downloadSpeed.innerText = '--';
+            }
+
+            if (lastDownloadTick.time > 0 && now > lastDownloadTick.time && current >= lastDownloadTick.bytes) {
+                const deltaBytes = current - lastDownloadTick.bytes;
+                const deltaSeconds = (now - lastDownloadTick.time) / 1000;
+                if (deltaSeconds > 0) {
+                    const speed = deltaBytes / deltaSeconds;
+                    downloadSpeed.innerText = `${(speed / 1048576).toFixed(2)} Mo/s`;
+                }
+            }
+
+            lastDownloadTick = { time: now, bytes: current };
+        });
+
+        window.launcherAPI.onLog((log) => {
+            statusText.innerText = log;
+            if (microsoftLoginInProgress && /microsoft|connexion|code|oauth|xbox/i.test(String(log))) {
+                setAuthStatus(String(log), '#fca311');
+            }
+        });
 
         window.launcherAPI.onModsInstalled((data) => {
             if (!data || !data.installed || !data.installed.length) return;
