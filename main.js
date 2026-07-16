@@ -19,6 +19,8 @@ const appModsPath = path.join(__dirname, 'mods');
 const authFilePath = path.join(launcherDataPath, 'auth.json');
 const curseForgeKeyFilePath = path.join(launcherDataPath, 'curseforge_api_key.txt');
 const customModpacksFilePath = path.join(launcherDataPath, 'custom_modpacks.json');
+const updateUrlFilePath = path.join(launcherDataPath, 'update_url.txt');
+const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
 
 function ensureDirectory(dirPath) {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -289,8 +291,6 @@ function createWindow() {
     });
     mainWindow.setMenuBarVisibility(false); 
     mainWindow.loadFile('index.html');
-    // Ouvrir les DevTools pour debugging
-    try { mainWindow.webContents.openDevTools({ mode: 'detach' }); } catch (e) { console.log('Impossible d ouvrir DevTools :', e); }
 
     mainWindow.webContents.on('did-finish-load', async () => {
         try {
@@ -414,8 +414,18 @@ async function downloadNeoForgeInstaller() {
     return forgePath;
 }
 
-const UPDATE_INFO_URL = "https://raw.githubusercontent.com/leomenard56-cell/mon-launcher-mc/main/update.json";
+const DEFAULT_UPDATE_INFO_URL = "https://raw.githubusercontent.com/leomenard56-cell/mon-launcher-mc/main/update.json";
 const UPDATE_DOWNLOAD_DIR = path.join(launcherDataPath, 'updates');
+
+function getUpdateInfoUrl() {
+    const envUrl = (process.env.MON_LAUNCHER_UPDATE_URL || '').trim();
+    if (envUrl && !/paste_public_update_json_url_here/i.test(envUrl)) return envUrl;
+    if (fs.existsSync(updateUrlFilePath)) {
+        const fileUrl = String(fs.readFileSync(updateUrlFilePath, 'utf-8') || '').trim();
+        if (fileUrl && !/paste_public_update_json_url_here/i.test(fileUrl)) return fileUrl;
+    }
+    return DEFAULT_UPDATE_INFO_URL;
+}
 
 function compareVersions(v1, v2) {
     const a = String(v1).split('.').map(Number);
@@ -430,18 +440,41 @@ function compareVersions(v1, v2) {
 }
 
 async function fetchUpdateMetadata() {
-    const response = await axios.get(UPDATE_INFO_URL, { timeout: 15000 });
-    return response.data;
+    try {
+        const updateInfoUrl = getUpdateInfoUrl();
+        if (!updateInfoUrl || updateInfoUrl === UPDATE_URL_PLACEHOLDER) {
+            throw new Error(`Aucune URL de mise à jour configurée. Mets une vraie URL publique dans ${updateUrlFilePath}.`);
+        }
+        const response = await axios.get(updateInfoUrl, { timeout: 15000 });
+        return response.data;
+    } catch (error) {
+        const status = error && error.response ? Number(error.response.status) : 0;
+        if (status === 404) {
+            throw new Error(`update.json introuvable en ligne. Mets une URL publique dans ${updateUrlFilePath} ou publie le fichier sur une URL accessible.`);
+        }
+        if (error && /ENOTFOUND/i.test(String(error.message || error))) {
+            throw new Error(`URL de mise à jour invalide. Remplace le contenu de ${updateUrlFilePath} par une vraie URL publique vers update.json.`);
+        }
+        throw error;
+    }
 }
 
 async function downloadUpdateInstaller(url) {
     if (!fs.existsSync(UPDATE_DOWNLOAD_DIR)) fs.mkdirSync(UPDATE_DOWNLOAD_DIR, { recursive: true });
     const installerPath = path.join(UPDATE_DOWNLOAD_DIR, 'latest-updater.exe');
-    const writer = fs.createWriteStream(installerPath);
-    const response = await axios({ url, method: 'GET', responseType: 'stream' });
-    response.data.pipe(writer);
-    await new Promise((resolve, reject) => { writer.on('finish', resolve); writer.on('error', reject); });
-    return installerPath;
+    try {
+        const writer = fs.createWriteStream(installerPath);
+        const response = await axios({ url, method: 'GET', responseType: 'stream' });
+        response.data.pipe(writer);
+        await new Promise((resolve, reject) => { writer.on('finish', resolve); writer.on('error', reject); });
+        return installerPath;
+    } catch (error) {
+        const status = error && error.response ? Number(error.response.status) : 0;
+        if (status === 404) {
+            throw new Error("Le fichier .exe de mise à jour est introuvable en ligne. Vérifie la release GitHub et l'URL dans update.json.");
+        }
+        throw error;
+    }
 }
 
 function normalizeManifestUrl(inputUrl) {
