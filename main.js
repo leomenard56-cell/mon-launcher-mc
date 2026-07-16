@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const axios = require('axios');
 const unzipper = require('unzipper');
 const { Client, Authenticator } = require('minecraft-launcher-core');
@@ -587,8 +587,38 @@ ipcMain.handle('download-update', async (event, downloadUrl) => {
     try {
         if (!downloadUrl) return { success: false, message: 'URL de téléchargement manquante.' };
         const installerPath = await downloadUpdateInstaller(downloadUrl);
-        await shell.openPath(installerPath);
-        return { success: true, installerPath };
+
+        let launchError = '';
+        try {
+            const child = spawn(installerPath, [], {
+                detached: true,
+                stdio: 'ignore',
+                windowsHide: false
+            });
+            child.unref();
+        } catch (spawnErr) {
+            launchError = spawnErr && spawnErr.message ? spawnErr.message : String(spawnErr);
+        }
+
+        if (launchError) {
+            const shellResult = await shell.openPath(installerPath);
+            if (shellResult) {
+                return {
+                    success: false,
+                    message: `Installateur téléchargé mais impossible de le lancer automatiquement. Fichier: ${installerPath}. Erreur: ${launchError || shellResult}`
+                };
+            }
+        }
+
+        setTimeout(() => {
+            try { app.quit(); } catch (_) { }
+        }, 1200);
+
+        return {
+            success: true,
+            installerPath,
+            message: 'Installateur lancé. Le launcher va se fermer pour appliquer la mise à jour.'
+        };
     } catch (error) {
         return { success: false, message: error.message || String(error) };
     }
