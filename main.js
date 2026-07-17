@@ -85,20 +85,35 @@ function copyDirectoryContents(sourceDir, destinationDir) {
     return copied;
 }
 
+function getModEntryInfo(fileName) {
+    const lower = String(fileName || '').toLowerCase();
+    if (lower.endsWith('.jar') || lower.endsWith('.zip')) {
+        return { displayName: fileName, enabled: true };
+    }
+    if (lower.endsWith('.jar.disabled') || lower.endsWith('.zip.disabled')) {
+        return { displayName: fileName.slice(0, -'.disabled'.length), enabled: false };
+    }
+    return null;
+}
+
 function listInstalledModFiles() {
     if (!fs.existsSync(modsFolderPath)) return [];
     return fs.readdirSync(modsFolderPath)
-        .filter(name => name.toLowerCase().endsWith('.jar') || name.toLowerCase().endsWith('.zip'))
         .map(name => {
+            const modInfo = getModEntryInfo(name);
+            if (!modInfo) return null;
             const filePath = path.join(modsFolderPath, name);
             const stat = fs.statSync(filePath);
             return {
-                name,
+                name: modInfo.displayName,
+                fileName: name,
+                enabled: modInfo.enabled,
                 path: filePath,
                 size: stat.size,
                 modified: stat.mtimeMs
             };
         })
+        .filter(Boolean)
         .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -783,6 +798,8 @@ function syncModsFromAppFolder() {
         try {
             const src = path.join(appModsPath, file);
             const dest = path.join(modsFolderPath, file);
+            const disabledDest = `${dest}.disabled`;
+            if (fs.existsSync(disabledDest)) continue;
             if (!fs.existsSync(dest) || fs.statSync(src).mtimeMs > fs.statSync(dest).mtimeMs) {
                 fs.copyFileSync(src, dest);
                 installed.push({ name: file, path: dest });
@@ -1037,6 +1054,47 @@ ipcMain.handle('list-installed-mods', async () => {
     try {
         ensureLauncherDataDirectories();
         return { success: true, mods: listInstalledModFiles(), folder: modsFolderPath };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+});
+
+ipcMain.handle('set-mod-enabled', async (event, payload = {}) => {
+    try {
+        ensureLauncherDataDirectories();
+        const modName = String(payload && payload.modName ? payload.modName : '').trim();
+        const shouldEnable = !!(payload && payload.enabled);
+        if (!modName || path.basename(modName) !== modName) {
+            return { success: false, error: 'Nom de mod invalide.' };
+        }
+        if (!/\.(jar|zip)$/i.test(modName)) {
+            return { success: false, error: 'Extension de mod invalide.' };
+        }
+
+        const enabledPath = path.join(modsFolderPath, modName);
+        const disabledPath = path.join(modsFolderPath, `${modName}.disabled`);
+        const enabledExists = fs.existsSync(enabledPath);
+        const disabledExists = fs.existsSync(disabledPath);
+
+        if (shouldEnable) {
+            if (enabledExists) {
+                return { success: true, changed: false, mods: listInstalledModFiles() };
+            }
+            if (!disabledExists) {
+                return { success: false, error: 'Mod introuvable.' };
+            }
+            fs.renameSync(disabledPath, enabledPath);
+        } else {
+            if (disabledExists) {
+                return { success: true, changed: false, mods: listInstalledModFiles() };
+            }
+            if (!enabledExists) {
+                return { success: false, error: 'Mod introuvable.' };
+            }
+            fs.renameSync(enabledPath, disabledPath);
+        }
+
+        return { success: true, changed: true, mods: listInstalledModFiles() };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
     }

@@ -1,6 +1,6 @@
 {
   "name": "mon-launcher-mc",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Launcher Minecraft personnalisé avec support moddé et connexion Microsoft",
   "main": "main.js",
   "scripts": {

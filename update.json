@@ -1,5 +1,5 @@
 {
-  "version": "1.0.19",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.19/KuroVerse-Setup-1.0.19.exe",
-  "notes": "Nouvel onglet Import TLauncher pour récupérer mods + configs utilisateur"
+  "version": "1.0.20",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.20/KuroVerse-Setup-1.0.20.exe",
+  "notes": "Onglet Mods/Packs: activation/desactivation des mods avec bouton ON/OFF"
 }

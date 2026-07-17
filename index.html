@@ -166,6 +166,19 @@
         .mod-item { background: #111722; border: 1px solid #2b3950; border-radius: 10px; padding: 12px; }
         .mod-item h4 { font-size: 14px; margin-bottom: 4px; }
         .mod-item p { font-size: 12px; color: #9b9ba6; margin: 0; word-break: break-all; }
+        .mod-item-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .mod-toggle-btn {
+            border: none;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #fff;
+            cursor: pointer;
+        }
+        .mod-toggle-btn[data-enabled="1"] { background: #16a34a; }
+        .mod-toggle-btn[data-enabled="0"] { background: #555; }
+        .mod-toggle-btn:disabled { opacity: 0.7; cursor: wait; }
         .cf-browser { display: grid; grid-template-columns: 290px 1fr; gap: 14px; }
         .cf-filter-group { border-top: 1px solid #262b38; padding-top: 12px; margin-top: 12px; }
         .cf-filter-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; color: #c8c8d2; }
@@ -580,7 +593,11 @@
             }
             modsList.innerHTML = mods.map(mod => `
                 <div class="mod-item">
-                    <h4>${mod.name}</h4>
+                    <div class="mod-item-top">
+                        <h4>${mod.name}</h4>
+                        <button class="mod-toggle-btn" data-mod-name="${encodeURIComponent(mod.name)}" data-enabled="${mod.enabled ? '1' : '0'}">${mod.enabled ? 'ON' : 'OFF'}</button>
+                    </div>
+                    <p>Etat: ${mod.enabled ? 'Actif' : 'Désactivé'}</p>
                     <p>${(mod.size / 1048576).toFixed(2)} Mo</p>
                     <p>${new Date(mod.modified).toLocaleString()}</p>
                 </div>
@@ -1027,6 +1044,24 @@
         installSingleModsBtn.addEventListener('click', installModsHandler);
 
         refreshModsBtn.addEventListener('click', refreshModsList);
+
+        modsList.addEventListener('click', async (event) => {
+            const toggleBtn = event.target.closest('.mod-toggle-btn');
+            if (!toggleBtn) return;
+            const encodedName = toggleBtn.getAttribute('data-mod-name') || '';
+            const modName = decodeURIComponent(encodedName);
+            const currentlyEnabled = toggleBtn.getAttribute('data-enabled') === '1';
+            toggleBtn.disabled = true;
+            toggleBtn.innerText = '...';
+            const result = await window.launcherAPI.setModEnabled({ modName, enabled: !currentlyEnabled });
+            if (!result || !result.success) {
+                modsInfo.innerText = 'Impossible de changer l\'état du mod: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                await refreshModsList();
+                return;
+            }
+            modsInfo.innerText = `${modName} ${currentlyEnabled ? 'désactivé' : 'activé'}.`;
+            await refreshModsList();
+        });
 
         importCurseForgeBtn.addEventListener('click', async () => {
             importCurseForgeBtn.disabled = true;

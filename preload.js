@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     selectMods: () => ipcRenderer.invoke('select-mods'),
     downloadDependencies: (modded) => ipcRenderer.invoke('download-dependencies', modded),
     listInstalledMods: () => ipcRenderer.invoke('list-installed-mods'),
+    setModEnabled: (payload) => ipcRenderer.invoke('set-mod-enabled', payload),
     importCurseForgePack: () => ipcRenderer.invoke('import-curseforge-pack'),
     importTLauncherProfile: () => ipcRenderer.invoke('import-tlauncher-profile'),
     exportModPack: () => ipcRenderer.invoke('export-modpack'),
