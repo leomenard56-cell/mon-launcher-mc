@@ -247,6 +247,41 @@ async function importCurseForgePackFromZip(zipPath) {
     };
 }
 
+function importTLauncherProfileFrom(sourceRoot) {
+    ensureLauncherDataDirectories();
+    const sourceDir = path.resolve(String(sourceRoot || '').trim());
+    if (!sourceDir || !fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
+        throw new Error('Dossier source TLauncher invalide.');
+    }
+
+    const importedFolders = [];
+    const importedFiles = [];
+    const folderNames = ['mods', 'config', 'defaultconfigs', 'kubejs', 'resourcepacks', 'shaderpacks'];
+    const fileNames = ['options.txt', 'optionsof.txt', 'servers.dat', 'launcher_profiles.json', 'tl_skin_cape.json', 'tlauncher_profiles.json'];
+
+    for (const folderName of folderNames) {
+        const sourceFolder = path.join(sourceDir, folderName);
+        if (!fs.existsSync(sourceFolder) || !fs.statSync(sourceFolder).isDirectory()) continue;
+        const copied = copyDirectoryContents(sourceFolder, path.join(launcherDataPath, folderName));
+        importedFolders.push({ name: folderName, count: copied.length });
+    }
+
+    for (const fileName of fileNames) {
+        const sourceFile = path.join(sourceDir, fileName);
+        if (!fs.existsSync(sourceFile) || !fs.statSync(sourceFile).isFile()) continue;
+        const destinationFile = path.join(launcherDataPath, fileName);
+        fs.copyFileSync(sourceFile, destinationFile);
+        importedFiles.push(fileName);
+    }
+
+    return {
+        sourceDir,
+        importedFolders,
+        importedFiles,
+        importedFolderCount: importedFolders.reduce((sum, row) => sum + Number(row.count || 0), 0)
+    };
+}
+
 async function extractZipToTemp(zipPath, prefix = 'pack-') {
     ensureDirectory(launcherDataPath);
     const tempDir = fs.mkdtempSync(path.join(launcherDataPath, prefix));
@@ -1324,6 +1359,38 @@ ipcMain.handle('export-modpack', async () => {
     } catch (err) {
         console.error('Erreur export-modpack:', err);
         return { success: false, error: err.message || String(err) };
+    }
+});
+
+ipcMain.handle('import-tlauncher-profile', async () => {
+    try {
+        ensureLauncherDataDirectories();
+        const defaultMinecraftDir = path.join(app.getPath('appData'), '.minecraft');
+        const dialogResult = await dialog.showOpenDialog(mainWindow, {
+            title: 'Sélectionner le dossier profil TLauncher/.minecraft',
+            defaultPath: defaultMinecraftDir,
+            properties: ['openDirectory']
+        });
+
+        if (dialogResult.canceled || !dialogResult.filePaths || !dialogResult.filePaths.length) {
+            return { success: false, canceled: true };
+        }
+
+        const imported = importTLauncherProfileFrom(dialogResult.filePaths[0]);
+        const installedMods = listInstalledModFiles();
+        mainWindow.webContents.send('mods-installed', { installed: installedMods, folder: modsFolderPath });
+
+        return {
+            success: true,
+            sourceDir: imported.sourceDir,
+            importedFolders: imported.importedFolders,
+            importedFiles: imported.importedFiles,
+            importedFolderCount: imported.importedFolderCount,
+            installedModsCount: installedMods.length,
+            message: `Import TLauncher terminé (${imported.importedFolderCount} fichier(s) dossier + ${imported.importedFiles.length} fichier(s) racine).`
+        };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
     }
 });
 

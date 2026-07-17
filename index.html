@@ -255,6 +255,7 @@
             <button class="tab-btn active" id="tabNewsBtn">Actualités</button>
             <button class="tab-btn" id="tabModsBtn">Mods / Packs</button>
             <button class="tab-btn" id="tabCurseForgeBtn">CurseForge</button>
+            <button class="tab-btn" id="tabTLauncherBtn">Import TLauncher</button>
             <button class="tab-btn" id="tabCustomPacksBtn">Mods Pack Personnaliser</button>
         </div>
 
@@ -387,6 +388,22 @@
                 </div>
             </div>
         </div>
+
+        <div id="tlauncherView" class="tab-panel">
+            <div class="header-news">Import TLauncher</div>
+            <div class="mods-grid">
+                <div class="panel-card">
+                    <h2 style="font-size:20px; margin-bottom:10px;">Importer un profil utilisateur</h2>
+                    <p class="small-note" style="margin-bottom:12px;">Sélectionne le dossier profil TLauncher ou .minecraft de l'utilisateur pour récupérer ses mods et ses configurations dans ton launcher.</p>
+                    <button id="importTLauncherBtn" class="btn-connexion" style="background:#8b5cf6;">Importer depuis TLauncher/.minecraft</button>
+                    <p class="small-note" id="tlauncherInfo" style="margin-top:12px;">Aucun import effectué.</p>
+                </div>
+                <div class="panel-card">
+                    <h2 style="font-size:20px; margin-bottom:10px;">Données importées</h2>
+                    <div class="mods-list" id="tlauncherImportedList"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="settingsOverlay" class="settings-overlay">
@@ -440,7 +457,8 @@
     <script>
         const playBtn = document.getElementById('playBtn'), progressContainer = document.getElementById('progressContainer'), progressBar = document.getElementById('progressBar'), statusText = document.getElementById('status-text'), downloadSize = document.getElementById('downloadSize'), downloadSpeed = document.getElementById('downloadSpeed'), playerNameH3 = document.getElementById('playerName'), playerAvatarDiv = document.getElementById('playerAvatar'), playerStatusP = document.getElementById('playerStatus');
         const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
-        const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
+        const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabTLauncherBtn = document.getElementById('tabTLauncherBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), tlauncherView = document.getElementById('tlauncherView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
+        const importTLauncherBtn = document.getElementById('importTLauncherBtn'), tlauncherInfo = document.getElementById('tlauncherInfo'), tlauncherImportedList = document.getElementById('tlauncherImportedList');
         const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
         const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfResults = document.getElementById('cfResults');
         const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
@@ -462,15 +480,41 @@
             const isNews = name === 'news';
             const isMods = name === 'mods';
             const isCurseForge = name === 'curseforge';
+            const isTLauncher = name === 'tlauncher';
             const isCustom = name === 'custom';
             newsView.classList.toggle('active', isNews);
             modsView.classList.toggle('active', isMods);
             curseForgeView.classList.toggle('active', isCurseForge);
+            tlauncherView.classList.toggle('active', isTLauncher);
             customPacksView.classList.toggle('active', isCustom);
             tabNewsBtn.classList.toggle('active', isNews);
             tabModsBtn.classList.toggle('active', isMods);
             tabCurseForgeBtn.classList.toggle('active', isCurseForge);
+            tabTLauncherBtn.classList.toggle('active', isTLauncher);
             tabCustomPacksBtn.classList.toggle('active', isCustom);
+        };
+
+        const renderTLauncherImported = (result) => {
+            if (!result || (!result.importedFolders || !result.importedFolders.length) && (!result.importedFiles || !result.importedFiles.length)) {
+                tlauncherImportedList.innerHTML = '<div class="mod-item"><h4>Aucune donnée importée</h4><p>Lance un import pour voir les éléments récupérés.</p></div>';
+                return;
+            }
+
+            const folderRows = (result.importedFolders || []).map((row) => `
+                <div class="mod-item">
+                    <h4>Dossier: ${row.name}</h4>
+                    <p>${Number(row.count || 0)} fichier(s) copié(s)</p>
+                </div>
+            `).join('');
+
+            const fileRows = (result.importedFiles || []).map((name) => `
+                <div class="mod-item">
+                    <h4>Fichier: ${name}</h4>
+                    <p>Copié dans le dossier launcher</p>
+                </div>
+            `).join('');
+
+            tlauncherImportedList.innerHTML = folderRows + fileRows;
         };
 
         const clampSettings = (settings) => ({
@@ -702,9 +746,34 @@
                 await runCurseForgeSearch(false);
             }
         });
+        tabTLauncherBtn.addEventListener('click', () => {
+            setTab('tlauncher');
+        });
         tabCustomPacksBtn.addEventListener('click', async () => {
             setTab('custom');
             await refreshCustomPacks();
+        });
+
+        importTLauncherBtn.addEventListener('click', async () => {
+            importTLauncherBtn.disabled = true;
+            importTLauncherBtn.innerText = 'Importation...';
+            tlauncherInfo.innerText = 'Import en cours...';
+            const result = await window.launcherAPI.importTLauncherProfile();
+            importTLauncherBtn.disabled = false;
+            importTLauncherBtn.innerText = 'Importer depuis TLauncher/.minecraft';
+
+            if (!result || result.canceled) {
+                tlauncherInfo.innerText = 'Import annulé.';
+                return;
+            }
+            if (!result.success) {
+                tlauncherInfo.innerText = 'Import échoué: ' + (result.error || 'Erreur inconnue');
+                return;
+            }
+
+            tlauncherInfo.innerText = `${result.message} Source: ${result.sourceDir}`;
+            renderTLauncherImported(result);
+            await refreshModsList();
         });
         cfSearchBtn.addEventListener('click', () => runCurseForgeSearch(false));
         cfPageSizeSelect.addEventListener('change', () => runCurseForgeSearch(false));
