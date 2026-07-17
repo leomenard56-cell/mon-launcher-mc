@@ -882,16 +882,17 @@
             playerAvatarDiv.style.backgroundImage = `url('https://minotar.net/helm/${displayName}/40.png')`;
             btnMicrosoft.disabled = false;
             btnMicrosoft.innerText = "Connecté !";
-            setAuthStatus('Connecté en compte Premium: ' + displayName, '#2ec4b6');
             const deviceModal = document.getElementById('deviceModal');
             deviceModal.style.display = 'none';
             
             if (profile.type === 'crack') {
                 playerStatusP.innerText = "Mode Hors-ligne";
                 playerStatusP.style.color = "#2ec4b6"; 
+                setAuthStatus('Connecté en mode hors-ligne: ' + displayName, '#2ec4b6');
             } else {
                 playerStatusP.innerText = "Compte Premium Vérifié";
                 playerStatusP.style.color = "#0078d4"; 
+                setAuthStatus('Connecté en compte Premium: ' + displayName, '#2ec4b6');
             }
             btnLogout.style.display = 'block';
             launchZone.style.display = 'block';

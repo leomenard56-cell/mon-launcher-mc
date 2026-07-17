@@ -341,8 +341,10 @@ function createWindow() {
             if (fs.existsSync(authFilePath)) {
                 const savedData = JSON.parse(fs.readFileSync(authFilePath, 'utf-8'));
                 if (savedData.type === 'crack') {
-                    userAuth = Authenticator.getAuth(savedData.pseudo);
-                    mainWindow.webContents.send('microsoft-success', { name: userAuth.name, type: 'crack' });
+                    const offlinePseudo = String(savedData.pseudo || '').trim();
+                    userAuth = Authenticator.getAuth(offlinePseudo);
+                    const displayName = (userAuth && userAuth.name ? String(userAuth.name).trim() : '') || offlinePseudo || 'Joueur';
+                    mainWindow.webContents.send('microsoft-success', { name: displayName, type: 'crack' });
                 } else if (savedData.type === 'microsoft' && savedData.token) {
                     const authManager = new Auth("select_account");
                     const xboxManager = await authManager.refresh(savedData.token);
@@ -789,9 +791,13 @@ ipcMain.handle('set-auth', async (event, data) => {
         if (!data || data.type !== 'crack' || !data.pseudo) {
             return { success: false, error: 'Données de connexion hors-ligne invalides.' };
         }
-        userAuth = Authenticator.getAuth(data.pseudo);
+        const offlinePseudo = String(data.pseudo || '').trim();
+        if (!offlinePseudo) {
+            return { success: false, error: 'Pseudo hors-ligne invalide.' };
+        }
+        userAuth = Authenticator.getAuth(offlinePseudo);
         if (!fs.existsSync(path.dirname(authFilePath))) fs.mkdirSync(path.dirname(authFilePath), { recursive: true });
-        fs.writeFileSync(authFilePath, JSON.stringify({ type: 'crack', pseudo: data.pseudo }), 'utf-8');
+        fs.writeFileSync(authFilePath, JSON.stringify({ type: 'crack', pseudo: offlinePseudo }), 'utf-8');
         return { success: true };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
