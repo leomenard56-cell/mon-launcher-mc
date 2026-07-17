@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     createCustomModpack: (payload) => ipcRenderer.invoke('create-custom-modpack', payload),
     checkCustomModpacksUpdates: () => ipcRenderer.invoke('check-custom-modpacks-updates'),
     installCustomModpackUpdate: (payload) => ipcRenderer.invoke('install-custom-modpack-update', payload),
+    getLauncherSettings: () => ipcRenderer.invoke('get-launcher-settings'),
+    saveLauncherSettings: (payload) => ipcRenderer.invoke('save-launcher-settings', payload),
     
     // Fonctions de connexion
     setAuthData: (data) => ipcRenderer.invoke('set-auth', data),

@@ -20,7 +20,13 @@ const authFilePath = path.join(launcherDataPath, 'auth.json');
 const curseForgeKeyFilePath = path.join(launcherDataPath, 'curseforge_api_key.txt');
 const customModpacksFilePath = path.join(launcherDataPath, 'custom_modpacks.json');
 const updateUrlFilePath = path.join(launcherDataPath, 'update_url.txt');
+const launcherSettingsFilePath = path.join(launcherDataPath, 'launcher_settings.json');
 const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
+const DEFAULT_LAUNCHER_SETTINGS = {
+    windowWidth: 1000,
+    windowHeight: 600,
+    minecraftRamGb: 6
+};
 
 function ensureDirectory(dirPath) {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -29,6 +35,37 @@ function ensureDirectory(dirPath) {
 function ensureLauncherDataDirectories() {
     ensureDirectory(launcherDataPath);
     ensureDirectory(modsFolderPath);
+}
+
+function normalizeLauncherSettings(rawSettings = {}) {
+    const width = Number(rawSettings.windowWidth);
+    const height = Number(rawSettings.windowHeight);
+    const ramGb = Number(rawSettings.minecraftRamGb);
+    return {
+        windowWidth: Number.isFinite(width) ? Math.min(2560, Math.max(820, Math.round(width))) : DEFAULT_LAUNCHER_SETTINGS.windowWidth,
+        windowHeight: Number.isFinite(height) ? Math.min(1600, Math.max(560, Math.round(height))) : DEFAULT_LAUNCHER_SETTINGS.windowHeight,
+        minecraftRamGb: Number.isFinite(ramGb) ? Math.min(32, Math.max(2, Math.round(ramGb))) : DEFAULT_LAUNCHER_SETTINGS.minecraftRamGb
+    };
+}
+
+function readLauncherSettings() {
+    ensureLauncherDataDirectories();
+    if (!fs.existsSync(launcherSettingsFilePath)) {
+        return { ...DEFAULT_LAUNCHER_SETTINGS };
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(launcherSettingsFilePath, 'utf-8'));
+        return { ...DEFAULT_LAUNCHER_SETTINGS, ...normalizeLauncherSettings(raw) };
+    } catch (_) {
+        return { ...DEFAULT_LAUNCHER_SETTINGS };
+    }
+}
+
+function writeLauncherSettings(rawSettings) {
+    const normalized = normalizeLauncherSettings(rawSettings);
+    ensureLauncherDataDirectories();
+    fs.writeFileSync(launcherSettingsFilePath, JSON.stringify(normalized, null, 2), 'utf-8');
+    return normalized;
 }
 
 function copyDirectoryContents(sourceDir, destinationDir) {
@@ -281,8 +318,10 @@ async function createPackZipFromLauncherData(destinationPath, packName) {
 }
 
 function createWindow() {
+    const launcherSettings = readLauncherSettings();
     mainWindow = new BrowserWindow({
-        width: 1000, height: 600,
+        width: launcherSettings.windowWidth,
+        height: launcherSettings.windowHeight,
         title: 'KuroVerse',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -1036,6 +1075,22 @@ ipcMain.handle('check-custom-modpacks-updates', async () => {
     }
 });
 
+ipcMain.handle('get-launcher-settings', async () => {
+    return { success: true, settings: readLauncherSettings() };
+});
+
+ipcMain.handle('save-launcher-settings', async (event, payload = {}) => {
+    try {
+        const settings = writeLauncherSettings(payload);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setSize(settings.windowWidth, settings.windowHeight, true);
+        }
+        return { success: true, settings };
+    } catch (err) {
+        return { success: false, message: err && err.message ? err.message : String(err) };
+    }
+});
+
 ipcMain.handle('install-custom-modpack-update', async (event, payload = {}) => {
     try {
         ensureLauncherDataDirectories();
@@ -1320,13 +1375,16 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
     };
 
     try {
+        const launcherSettings = readLauncherSettings();
+        const memoryMaxGb = launcherSettings.minecraftRamGb;
+        const memoryMinGb = Math.max(1, Math.min(memoryMaxGb - 1, Math.floor(memoryMaxGb / 2)));
         const baseOpts = {
             clientPackage: null,
             authorization: userAuth,
             root: launcherDataPath,
             version: { number: "1.21.1", type: "release" },
             javaPath: javaPath,
-            memory: { max: "6G", min: "2G" }
+            memory: { max: `${memoryMaxGb}G`, min: `${memoryMinGb}G` }
         };
 
         launcher.removeAllListeners('close');

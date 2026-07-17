@@ -30,6 +30,7 @@
         .btn-play:hover { background: #ff661a; transform: translateY(-2px); }
         .btn-play:disabled { background: #333; color: #666; cursor: not-allowed; box-shadow: none; transform: none; }
         .content {
+            position: relative;
             flex-grow: 1;
             padding: 30px;
             display: flex;
@@ -40,6 +41,71 @@
             overflow-y: auto;
             border-left: 1px solid #2e405f;
         }
+        .settings-btn {
+            position: absolute;
+            top: 22px;
+            right: 22px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            border: 1px solid #334766;
+            background: linear-gradient(180deg, #182235, #111722);
+            color: #e7eefc;
+            cursor: pointer;
+            box-shadow: 0 10px 22px rgba(3,10,22,0.35);
+            z-index: 6;
+        }
+        .settings-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .settings-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 8, 18, 0.72);
+            backdrop-filter: blur(6px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9998;
+            padding: 20px;
+        }
+        .settings-card {
+            width: min(520px, 100%);
+            background: #111722;
+            border: 1px solid #2b3950;
+            border-radius: 16px;
+            box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+            padding: 20px;
+        }
+        .settings-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+        .settings-field { display: grid; gap: 8px; }
+        .settings-field label { font-size: 13px; color: #c9d2e8; font-weight: 700; }
+        .settings-field input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #334766;
+            background: #0f1623;
+            color: #fff;
+        }
+        .resolution-presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .resolution-preset {
+            padding: 8px 10px;
+            border-radius: 999px;
+            border: 1px solid #334766;
+            background: #0f1623;
+            color: #dce5f7;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .resolution-preset:hover { filter: brightness(1.08); }
+        .settings-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+        .settings-note { font-size: 12px; color: #a8a8b3; line-height: 1.45; }
         .header-news { font-size: 30px; font-weight: 800; margin-bottom: 20px; color: #e8f1ff; }
         .card-news, .panel-card {
             background: #151a22;
@@ -174,6 +240,7 @@
     </div>
 
     <div class="content">
+        <button id="settingsBtn" class="settings-btn" title="Paramètres"><i class="fa-solid fa-gear"></i></button>
         <div class="tab-bar">
             <button class="tab-btn active" id="tabNewsBtn">Actualités</button>
             <button class="tab-btn" id="tabModsBtn">Mods / Packs</button>
@@ -312,6 +379,45 @@
         </div>
     </div>
 
+    <div id="settingsOverlay" class="settings-overlay">
+        <div class="settings-card">
+            <div class="settings-header">
+                <div>
+                    <div style="font-size:20px; font-weight:800; color:#fff; margin-bottom:4px;">Paramètres</div>
+                    <div class="settings-note">Ajuste la taille du launcher et la RAM dédiée à Minecraft.</div>
+                </div>
+                <button id="closeSettingsBtn" class="btn-connexion" style="background:#555; width:auto; margin:0; padding:10px 14px;">Fermer</button>
+            </div>
+            <div class="settings-grid">
+                <div class="settings-field">
+                    <label for="launcherWidthInput">Largeur du launcher</label>
+                    <input id="launcherWidthInput" type="number" min="820" max="2560" step="10" value="1000">
+                </div>
+                <div class="settings-field">
+                    <label for="launcherHeightInput">Hauteur du launcher</label>
+                    <input id="launcherHeightInput" type="number" min="560" max="1600" step="10" value="600">
+                </div>
+                <div class="settings-field" style="grid-column: 1 / -1;">
+                    <label for="minecraftRamInput">RAM Minecraft (Go)</label>
+                    <input id="minecraftRamInput" type="number" min="2" max="32" step="1" value="6">
+                </div>
+            </div>
+            <div class="settings-field" style="margin-bottom: 10px;">
+                <label>Résolutions rapides</label>
+                <div class="resolution-presets">
+                    <button class="resolution-preset" data-width="1280" data-height="720" type="button">1280 × 720</button>
+                    <button class="resolution-preset" data-width="1366" data-height="768" type="button">1366 × 768</button>
+                    <button class="resolution-preset" data-width="1600" data-height="900" type="button">1600 × 900</button>
+                    <button class="resolution-preset" data-width="1920" data-height="1080" type="button">1920 × 1080</button>
+                </div>
+            </div>
+            <div class="settings-note">La taille s’applique tout de suite. La RAM sera utilisée au prochain lancement du jeu.</div>
+            <div class="settings-actions">
+                <button id="saveSettingsBtn" class="btn-connexion" style="background:#16a34a; width:auto; margin:0; padding:12px 16px;">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
     <div id="deviceModal" style="display:none; position:fixed; right:20px; top:20px; background:#111; border:1px solid #222; padding:16px; border-radius:8px; width:320px; z-index:9999; box-shadow:0 8px 30px rgba(0,0,0,0.6);">
         <div style="font-weight:bold; margin-bottom:8px;">Connexion Microsoft (device)</div>
         <div id="deviceText" style="font-size:13px; color:#ccc; margin-bottom:12px;">Suivez les instructions...</div>
@@ -328,10 +434,13 @@
         const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
         const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfResults = document.getElementById('cfResults');
         const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
+        const settingsBtn = document.getElementById('settingsBtn'), settingsOverlay = document.getElementById('settingsOverlay'), closeSettingsBtn = document.getElementById('closeSettingsBtn'), saveSettingsBtn = document.getElementById('saveSettingsBtn'), launcherWidthInput = document.getElementById('launcherWidthInput'), launcherHeightInput = document.getElementById('launcherHeightInput'), minecraftRamInput = document.getElementById('minecraftRamInput');
+        const resolutionPresetButtons = Array.from(document.querySelectorAll('.resolution-preset'));
         const authStatus = document.getElementById('authStatus');
         let microsoftLoginInProgress = false;
         let lastDownloadTick = { time: 0, bytes: 0 };
         let hasByteBasedDownload = false;
+        let launcherSettings = { windowWidth: 1000, windowHeight: 600, minecraftRamGb: 6 };
         const curseForgeState = { index: 0, pageSize: 20, totalCount: 0, type: 'mods' };
 
         const setAuthStatus = (text, color) => {
@@ -353,6 +462,62 @@
             tabCurseForgeBtn.classList.toggle('active', isCurseForge);
             tabCustomPacksBtn.classList.toggle('active', isCustom);
         };
+
+        const clampSettings = (settings) => ({
+            windowWidth: Math.min(2560, Math.max(820, Number(settings && settings.windowWidth ? settings.windowWidth : 1000))),
+            windowHeight: Math.min(1600, Math.max(560, Number(settings && settings.windowHeight ? settings.windowHeight : 600))),
+            minecraftRamGb: Math.min(32, Math.max(2, Number(settings && settings.minecraftRamGb ? settings.minecraftRamGb : 6)))
+        });
+
+        const applySettingsToForm = (settings) => {
+            launcherSettings = clampSettings(settings || launcherSettings);
+            launcherWidthInput.value = launcherSettings.windowWidth;
+            launcherHeightInput.value = launcherSettings.windowHeight;
+            minecraftRamInput.value = launcherSettings.minecraftRamGb;
+        };
+
+        const loadLauncherSettings = async () => {
+            if (!window.launcherAPI || !window.launcherAPI.getLauncherSettings) return;
+            const result = await window.launcherAPI.getLauncherSettings();
+            if (result && result.success && result.settings) {
+                applySettingsToForm(result.settings);
+            }
+        };
+
+        const openSettings = async () => {
+            await loadLauncherSettings();
+            settingsOverlay.style.display = 'flex';
+        };
+
+        const closeSettings = () => {
+            settingsOverlay.style.display = 'none';
+        };
+
+        const saveSettings = async () => {
+            const nextSettings = clampSettings({
+                windowWidth: Number(launcherWidthInput.value),
+                windowHeight: Number(launcherHeightInput.value),
+                minecraftRamGb: Number(minecraftRamInput.value)
+            });
+            launcherWidthInput.value = nextSettings.windowWidth;
+            launcherHeightInput.value = nextSettings.windowHeight;
+            minecraftRamInput.value = nextSettings.minecraftRamGb;
+            const result = await window.launcherAPI.saveLauncherSettings(nextSettings);
+            if (!result || !result.success) {
+                statusText.innerText = 'Erreur paramètres : ' + (result && result.message ? result.message : 'Échec inconnu');
+                return;
+            }
+            launcherSettings = result.settings || nextSettings;
+            statusText.innerText = `Paramètres enregistrés. Fenêtre ${launcherSettings.windowWidth}x${launcherSettings.windowHeight}, RAM ${launcherSettings.minecraftRamGb} Go.`;
+            closeSettings();
+        };
+
+        resolutionPresetButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                launcherWidthInput.value = button.dataset.width;
+                launcherHeightInput.value = button.dataset.height;
+            });
+        });
 
         const renderModsList = (mods) => {
             if (!mods || !mods.length) {
@@ -830,6 +995,15 @@
                 updateInfo.innerText = `Aucune mise à jour trouvée. Version actuelle : ${result.currentVersion}`;
             }
         });
+
+        settingsBtn.addEventListener('click', openSettings);
+        closeSettingsBtn.addEventListener('click', closeSettings);
+        saveSettingsBtn.addEventListener('click', saveSettings);
+        settingsOverlay.addEventListener('click', (event) => {
+            if (event.target === settingsOverlay) closeSettings();
+        });
+
+        loadLauncherSettings();
 
         downloadUpdateBtn.addEventListener('click', async () => {
             const url = downloadUpdateBtn.dataset.url;

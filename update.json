@@ -1,5 +1,5 @@
 {
-  "version": "1.0.15",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.15/KuroVerse-Setup-1.0.15.exe",
-  "notes": "Pack launcher allégé sans mods intégrés"
+  "version": "1.0.16",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.16/KuroVerse-Setup-1.0.16.exe",
+  "notes": "Ajout du panneau paramètres: résolution launcher + RAM Minecraft"
 }
