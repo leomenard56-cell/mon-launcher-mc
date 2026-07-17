@@ -1,6 +1,6 @@
 {
   "name": "mon-launcher-mc",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Launcher Minecraft personnalisé avec support moddé et connexion Microsoft",
   "main": "main.js",
   "scripts": {
@@ -28,9 +28,9 @@
     "tough-cookie": "^4.1.3"
   },
   "build": {
-    "appId": "com.monlauncher.mc",
-    "productName": "Mon Launcher MC",
-    "artifactName": "Mon-Launcher-MC-Setup-${version}.${ext}",
+    "appId": "com.kuroverse.launcher",
+    "productName": "KuroVerse",
+    "artifactName": "KuroVerse-Setup-${version}.${ext}",
     "files": [
       "**/*",
       "!node_modules/**/*.md",
