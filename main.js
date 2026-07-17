@@ -283,6 +283,7 @@ async function createPackZipFromLauncherData(destinationPath, packName) {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1000, height: 600,
+        title: 'KuroVerse',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,

@@ -2,14 +2,24 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Mon Launcher Custom</title>
+    <title>KuroVerse</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #18181c; color: #fff; display: flex; height: 100vh; overflow: hidden; }
         .sidebar { width: 260px; background: #111114; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #222; }
         .profile-card { display: flex; align-items: center; background: #1a1a1e; padding: 12px; border-radius: 8px; margin-bottom: 25px; }
-        .avatar { width: 40px; height: 40px; background: #333; border-radius: 6px; margin-right: 12px; background-image: url('https://minotar.net/helm/Steve/40.png'); background-size: cover; }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            margin-right: 12px;
+            border-radius: 10px;
+            background-color: #111;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230d0d12'/><path d='M18 15l7 10H39l7-10 4 2-2 15c-1 12-7 22-16 22S16 44 15 32l-2-15 5-2z' fill='%23101016'/><path d='M20 20l-8-8 2-4 10 7-4 5zm24 0l8-8-2-4-10 7 4 5z' fill='%23ff7ab8'/><circle cx='25' cy='32' r='3' fill='%23ff7ab8'/><circle cx='39' cy='32' r='3' fill='%23ff7ab8'/><path d='M28 42c2 2 6 2 8 0' stroke='%23ff7ab8' stroke-width='3' stroke-linecap='round' fill='none'/><path d='M29 24l3-7 3 7-3 3z' fill='%23fff3f7'/><circle cx='32' cy='21' r='2' fill='%23ffd4e8'/></svg>");
+            background-size: cover;
+            background-position: center;
+            border: 1px solid #2f2f3d;
+        }
         .profile-info h3 { font-size: 14px; color: #fff; }
         .profile-info p { font-size: 11px; color: #aaa; font-weight: bold; text-transform: uppercase; }
         .shop-section { flex-grow: 1; }
