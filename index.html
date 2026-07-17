@@ -827,15 +827,24 @@
             downloadUpdateBtn.disabled = true;
             downloadUpdateBtn.innerText = 'Téléchargement...';
             statusText.innerText = 'Téléchargement de la mise à jour en cours...';
-            const result = await window.launcherAPI.downloadUpdate(url);
-            downloadUpdateBtn.disabled = false;
-            downloadUpdateBtn.innerText = 'Télécharger la mise à jour';
-            if (!result || !result.success) {
-                statusText.innerText = 'Erreur téléchargement mise à jour : ' + (result && result.message ? result.message : 'Échec inconnu');
-                return;
+            try {
+                const timeoutMs = 240000;
+                const result = await Promise.race([
+                    window.launcherAPI.downloadUpdate(url),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Le téléchargement prend trop de temps (timeout).')), timeoutMs))
+                ]);
+                if (!result || !result.success) {
+                    statusText.innerText = 'Erreur téléchargement mise à jour : ' + (result && result.message ? result.message : 'Échec inconnu');
+                    return;
+                }
+                statusText.innerText = result.message || ('Mise à jour téléchargée : ' + result.installerPath);
+                updateInfo.innerText = 'Installez la nouvelle version dans le dossier '.concat(result.installerPath);
+            } catch (err) {
+                statusText.innerText = 'Erreur téléchargement mise à jour : ' + (err && err.message ? err.message : String(err));
+            } finally {
+                downloadUpdateBtn.disabled = false;
+                downloadUpdateBtn.innerText = 'Télécharger la mise à jour';
             }
-            statusText.innerText = 'Mise à jour téléchargée : ' + result.installerPath;
-            updateInfo.innerText = 'Installez la nouvelle version dans le dossier '.concat(result.installerPath);
         });
 
         downloadDepsBtn.addEventListener('click', async () => {

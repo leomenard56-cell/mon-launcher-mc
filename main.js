@@ -464,7 +464,13 @@ async function downloadUpdateInstaller(url) {
     const installerPath = path.join(UPDATE_DOWNLOAD_DIR, 'latest-updater.exe');
     try {
         const writer = fs.createWriteStream(installerPath);
-        const response = await axios({ url, method: 'GET', responseType: 'stream' });
+        const response = await axios({
+            url,
+            method: 'GET',
+            responseType: 'stream',
+            timeout: 180000,
+            maxRedirects: 10
+        });
         response.data.pipe(writer);
         await new Promise((resolve, reject) => { writer.on('finish', resolve); writer.on('error', reject); });
         return installerPath;
