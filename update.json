@@ -1,5 +1,5 @@
 {
-  "version": "1.0.9",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.9/Mon-Launcher-MC-Setup-1.0.9.exe",
-  "notes": "Version 1.0.9"
+  "version": "1.0.10",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.10/Mon-Launcher-MC-Setup-1.0.10.exe",
+  "notes": "Correction blocage téléchargement MAJ + fallback navigateur automatique"
 }

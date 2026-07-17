@@ -459,11 +459,10 @@ async function fetchUpdateMetadata() {
     }
 }
 
-async function downloadUpdateInstaller(url) {
+async function downloadUpdateInstaller(url, onProgress) {
     if (!fs.existsSync(UPDATE_DOWNLOAD_DIR)) fs.mkdirSync(UPDATE_DOWNLOAD_DIR, { recursive: true });
     const installerPath = path.join(UPDATE_DOWNLOAD_DIR, 'latest-updater.exe');
     try {
-        const writer = fs.createWriteStream(installerPath);
         const response = await axios({
             url,
             method: 'GET',
@@ -471,8 +470,59 @@ async function downloadUpdateInstaller(url) {
             timeout: 180000,
             maxRedirects: 10
         });
-        response.data.pipe(writer);
-        await new Promise((resolve, reject) => { writer.on('finish', resolve); writer.on('error', reject); });
+        const totalBytes = Number(response && response.headers && response.headers['content-length'] ? response.headers['content-length'] : 0);
+
+        await new Promise((resolve, reject) => {
+            const writer = fs.createWriteStream(installerPath);
+            let settled = false;
+            let downloadedBytes = 0;
+            let stallTimer = null;
+
+            const cleanup = () => {
+                if (stallTimer) clearTimeout(stallTimer);
+                stallTimer = null;
+                writer.removeAllListeners();
+                response.data.removeAllListeners('data');
+                response.data.removeAllListeners('error');
+            };
+
+            const fail = (err) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                try { response.data.destroy(); } catch (_) { }
+                try { writer.destroy(); } catch (_) { }
+                reject(err);
+            };
+
+            const armStallTimer = () => {
+                if (stallTimer) clearTimeout(stallTimer);
+                stallTimer = setTimeout(() => {
+                    fail(new Error('DOWNLOAD_STALL_TIMEOUT: aucun progrès de téléchargement.'));
+                }, 25000);
+            };
+
+            armStallTimer();
+            response.data.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                armStallTimer();
+                if (typeof onProgress === 'function') {
+                    onProgress({ current: downloadedBytes, total: totalBytes, files: 1, name: 'update-installer' });
+                }
+            });
+
+            response.data.on('error', fail);
+            writer.on('error', fail);
+            writer.on('finish', () => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve();
+            });
+
+            response.data.pipe(writer);
+        });
+
         return installerPath;
     } catch (error) {
         const status = error && error.response ? Number(error.response.status) : 0;
@@ -592,7 +642,11 @@ ipcMain.handle('check-for-updates', async () => {
 ipcMain.handle('download-update', async (event, downloadUrl) => {
     try {
         if (!downloadUrl) return { success: false, message: 'URL de téléchargement manquante.' };
-        const installerPath = await downloadUpdateInstaller(downloadUrl);
+        const installerPath = await downloadUpdateInstaller(downloadUrl, (progress) => {
+            try {
+                mainWindow.webContents.send('launcher-download-status', progress);
+            } catch (_) { }
+        });
 
         let launchError = '';
         try {
@@ -626,7 +680,19 @@ ipcMain.handle('download-update', async (event, downloadUrl) => {
             message: 'Installateur lancé. Le launcher va se fermer pour appliquer la mise à jour.'
         };
     } catch (error) {
-        return { success: false, message: error.message || String(error) };
+        const rawError = String(error && error.message ? error.message : error);
+        const canFallbackToBrowser = /DOWNLOAD_STALL_TIMEOUT|timeout|ECONNABORTED|ETIMEDOUT/i.test(rawError);
+        if (canFallbackToBrowser) {
+            try {
+                await shell.openExternal(downloadUrl);
+                return {
+                    success: true,
+                    installerPath: null,
+                    message: 'Le téléchargement direct est bloqué. Ouverture du lien dans le navigateur pour finir la mise à jour.'
+                };
+            } catch (_) { }
+        }
+        return { success: false, message: rawError };
     }
 });
 
