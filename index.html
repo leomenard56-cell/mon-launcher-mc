@@ -116,6 +116,23 @@
         .resolution-preset:hover { filter: brightness(1.08); }
         .settings-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
         .settings-note { font-size: 12px; color: #a8a8b3; line-height: 1.45; }
+        .skin-studio-grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+        .skin-preview-wrap { display: flex; justify-content: center; align-items: center; min-height: 360px; background: #0d1320; border: 1px solid #2b3950; border-radius: 12px; }
+        .skin-preview-canvas {
+            width: 320px;
+            height: 320px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            background-image: linear-gradient(45deg, #1b2130 25%, transparent 25%), linear-gradient(-45deg, #1b2130 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1b2130 75%), linear-gradient(-45deg, transparent 75%, #1b2130 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+            border: 1px solid #334766;
+            border-radius: 8px;
+        }
+        .skin-control-row { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; align-items: center; margin-bottom: 10px; }
+        .skin-control-row label { font-size: 12px; color: #c8d3ea; }
+        .skin-control-row input[type="range"] { width: 100%; }
+        .skin-url-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 10px; }
         .header-news { font-size: 30px; font-weight: 800; margin-bottom: 20px; color: #e8f1ff; }
         .card-news, .panel-card {
             background: #151a22;
@@ -269,6 +286,7 @@
             <button class="tab-btn" id="tabModsBtn">Mods / Packs</button>
             <button class="tab-btn" id="tabCurseForgeBtn">CurseForge</button>
             <button class="tab-btn" id="tabTLauncherBtn">Import TLauncher</button>
+            <button class="tab-btn" id="tabSkinsBtn">Skin Studio</button>
             <button class="tab-btn" id="tabCustomPacksBtn">Mods Pack Personnaliser</button>
         </div>
 
@@ -417,6 +435,58 @@
                 </div>
             </div>
         </div>
+
+        <div id="skinsView" class="tab-panel">
+            <div class="header-news">Skin Studio</div>
+            <div class="skin-studio-grid">
+                <div class="panel-card">
+                    <h2 style="font-size:20px; margin-bottom:10px;">Importer un skin</h2>
+                    <div style="display:flex; gap:8px; margin-bottom:10px;">
+                        <input id="skinFileInput" type="file" accept=".png,image/png" style="display:none;">
+                        <button id="pickSkinFileBtn" class="btn-connexion" style="margin:0; background:#16a34a;">Choisir PNG</button>
+                        <button id="resetSkinBtn" class="btn-connexion" style="margin:0; background:#555;">Reset</button>
+                    </div>
+                    <div class="skin-url-row">
+                        <input id="skinUrlInput" class="cf-control" type="text" placeholder="URL d'un skin .png (internet)">
+                        <button id="loadSkinUrlBtn" class="btn-connexion" style="margin:0; background:#3b82f6;">Charger URL</button>
+                    </div>
+                    <p class="small-note" id="skinStudioInfo">Importe un skin PNG 64x64 (ou charge une URL), puis ajuste les réglages.</p>
+                    <hr style="border-color:#2b3950; margin:12px 0;">
+                    <h2 style="font-size:18px; margin-bottom:10px;">Modifier</h2>
+                    <div class="skin-control-row">
+                        <label for="skinBrightness">Luminosité</label>
+                        <input id="skinBrightness" type="range" min="0" max="2" step="0.01" value="1">
+                        <span id="skinBrightnessVal" class="small-note">1.00</span>
+                    </div>
+                    <div class="skin-control-row">
+                        <label for="skinContrast">Contraste</label>
+                        <input id="skinContrast" type="range" min="0" max="2" step="0.01" value="1">
+                        <span id="skinContrastVal" class="small-note">1.00</span>
+                    </div>
+                    <div class="skin-control-row">
+                        <label for="skinSaturate">Saturation</label>
+                        <input id="skinSaturate" type="range" min="0" max="2" step="0.01" value="1">
+                        <span id="skinSaturateVal" class="small-note">1.00</span>
+                    </div>
+                    <div class="skin-control-row">
+                        <label for="skinHue">Teinte</label>
+                        <input id="skinHue" type="range" min="-180" max="180" step="1" value="0">
+                        <span id="skinHueVal" class="small-note">0°</span>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:10px;">
+                        <button id="mirrorSkinBtn" class="btn-connexion" style="margin:0; background:#8b5cf6;">Miroir horizontal</button>
+                        <button id="downloadSkinBtn" class="btn-connexion" style="margin:0; background:#ff5500;">Exporter PNG</button>
+                    </div>
+                </div>
+                <div class="panel-card">
+                    <h2 style="font-size:20px; margin-bottom:10px;">Aperçu exact de la texture</h2>
+                    <div class="skin-preview-wrap">
+                        <canvas id="skinPreviewCanvas" class="skin-preview-canvas" width="64" height="64"></canvas>
+                    </div>
+                    <p class="small-note" style="margin-top:10px;">Aperçu pixel-perfect de la texture skin Minecraft (format 64x64).</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="settingsOverlay" class="settings-overlay">
@@ -470,8 +540,10 @@
     <script>
         const playBtn = document.getElementById('playBtn'), progressContainer = document.getElementById('progressContainer'), progressBar = document.getElementById('progressBar'), statusText = document.getElementById('status-text'), downloadSize = document.getElementById('downloadSize'), downloadSpeed = document.getElementById('downloadSpeed'), playerNameH3 = document.getElementById('playerName'), playerAvatarDiv = document.getElementById('playerAvatar'), playerStatusP = document.getElementById('playerStatus');
         const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
-        const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabTLauncherBtn = document.getElementById('tabTLauncherBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), tlauncherView = document.getElementById('tlauncherView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
+        const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabTLauncherBtn = document.getElementById('tabTLauncherBtn'), tabSkinsBtn = document.getElementById('tabSkinsBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), tlauncherView = document.getElementById('tlauncherView'), skinsView = document.getElementById('skinsView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
         const importTLauncherBtn = document.getElementById('importTLauncherBtn'), tlauncherInfo = document.getElementById('tlauncherInfo'), tlauncherImportedList = document.getElementById('tlauncherImportedList');
+        const skinFileInput = document.getElementById('skinFileInput'), pickSkinFileBtn = document.getElementById('pickSkinFileBtn'), resetSkinBtn = document.getElementById('resetSkinBtn'), skinUrlInput = document.getElementById('skinUrlInput'), loadSkinUrlBtn = document.getElementById('loadSkinUrlBtn'), skinStudioInfo = document.getElementById('skinStudioInfo'), skinPreviewCanvas = document.getElementById('skinPreviewCanvas'), mirrorSkinBtn = document.getElementById('mirrorSkinBtn'), downloadSkinBtn = document.getElementById('downloadSkinBtn');
+        const skinBrightness = document.getElementById('skinBrightness'), skinContrast = document.getElementById('skinContrast'), skinSaturate = document.getElementById('skinSaturate'), skinHue = document.getElementById('skinHue'), skinBrightnessVal = document.getElementById('skinBrightnessVal'), skinContrastVal = document.getElementById('skinContrastVal'), skinSaturateVal = document.getElementById('skinSaturateVal'), skinHueVal = document.getElementById('skinHueVal');
         const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
         const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfResults = document.getElementById('cfResults');
         const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
@@ -483,6 +555,15 @@
         let hasByteBasedDownload = false;
         let launcherSettings = { windowWidth: 1000, windowHeight: 600, minecraftRamGb: 6 };
         const curseForgeState = { index: 0, pageSize: 20, totalCount: 0, type: 'mods' };
+        let skinSourceImage = null;
+        let skinMirror = false;
+
+        const skinFilterState = {
+            brightness: 1,
+            contrast: 1,
+            saturate: 1,
+            hue: 0
+        };
 
         const setAuthStatus = (text, color) => {
             authStatus.innerText = text;
@@ -494,17 +575,105 @@
             const isMods = name === 'mods';
             const isCurseForge = name === 'curseforge';
             const isTLauncher = name === 'tlauncher';
+            const isSkins = name === 'skins';
             const isCustom = name === 'custom';
             newsView.classList.toggle('active', isNews);
             modsView.classList.toggle('active', isMods);
             curseForgeView.classList.toggle('active', isCurseForge);
             tlauncherView.classList.toggle('active', isTLauncher);
+            skinsView.classList.toggle('active', isSkins);
             customPacksView.classList.toggle('active', isCustom);
             tabNewsBtn.classList.toggle('active', isNews);
             tabModsBtn.classList.toggle('active', isMods);
             tabCurseForgeBtn.classList.toggle('active', isCurseForge);
             tabTLauncherBtn.classList.toggle('active', isTLauncher);
+            tabSkinsBtn.classList.toggle('active', isSkins);
             tabCustomPacksBtn.classList.toggle('active', isCustom);
+        };
+
+        const drawSkinPreview = () => {
+            const ctx = skinPreviewCanvas.getContext('2d');
+            ctx.clearRect(0, 0, skinPreviewCanvas.width, skinPreviewCanvas.height);
+            if (!skinSourceImage) return;
+
+            const temp = document.createElement('canvas');
+            temp.width = 64;
+            temp.height = 64;
+            const tctx = temp.getContext('2d');
+            tctx.clearRect(0, 0, 64, 64);
+            tctx.filter = `brightness(${skinFilterState.brightness}) contrast(${skinFilterState.contrast}) saturate(${skinFilterState.saturate}) hue-rotate(${skinFilterState.hue}deg)`;
+
+            if (skinMirror) {
+                tctx.save();
+                tctx.scale(-1, 1);
+                tctx.drawImage(skinSourceImage, -64, 0, 64, 64);
+                tctx.restore();
+            } else {
+                tctx.drawImage(skinSourceImage, 0, 0, 64, 64);
+            }
+
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(temp, 0, 0, 64, 64);
+        };
+
+        const updateSkinFilterLabels = () => {
+            skinBrightnessVal.innerText = Number(skinFilterState.brightness).toFixed(2);
+            skinContrastVal.innerText = Number(skinFilterState.contrast).toFixed(2);
+            skinSaturateVal.innerText = Number(skinFilterState.saturate).toFixed(2);
+            skinHueVal.innerText = `${Math.round(Number(skinFilterState.hue))}°`;
+        };
+
+        const resetSkinFilters = () => {
+            skinFilterState.brightness = 1;
+            skinFilterState.contrast = 1;
+            skinFilterState.saturate = 1;
+            skinFilterState.hue = 0;
+            skinMirror = false;
+            skinBrightness.value = '1';
+            skinContrast.value = '1';
+            skinSaturate.value = '1';
+            skinHue.value = '0';
+            updateSkinFilterLabels();
+            drawSkinPreview();
+        };
+
+        const loadSkinFromDataUrl = (dataUrl, sourceLabel) => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    skinSourceImage = img;
+                    resetSkinFilters();
+                    skinStudioInfo.innerText = `Skin chargé depuis ${sourceLabel}.`;
+                    resolve(true);
+                };
+                img.onerror = () => reject(new Error('Image skin invalide ou non lisible.'));
+                img.src = dataUrl;
+            });
+        };
+
+        const exportCurrentSkin = () => {
+            if (!skinSourceImage) {
+                skinStudioInfo.innerText = 'Aucun skin chargé à exporter.';
+                return;
+            }
+            const out = document.createElement('canvas');
+            out.width = 64;
+            out.height = 64;
+            const octx = out.getContext('2d');
+            octx.filter = `brightness(${skinFilterState.brightness}) contrast(${skinFilterState.contrast}) saturate(${skinFilterState.saturate}) hue-rotate(${skinFilterState.hue}deg)`;
+            if (skinMirror) {
+                octx.save();
+                octx.scale(-1, 1);
+                octx.drawImage(skinSourceImage, -64, 0, 64, 64);
+                octx.restore();
+            } else {
+                octx.drawImage(skinSourceImage, 0, 0, 64, 64);
+            }
+            const a = document.createElement('a');
+            a.href = out.toDataURL('image/png');
+            a.download = 'kuroverse-skin-edited.png';
+            a.click();
+            skinStudioInfo.innerText = 'Skin exporté en PNG.';
         };
 
         const renderTLauncherImported = (result) => {
@@ -766,10 +935,81 @@
         tabTLauncherBtn.addEventListener('click', () => {
             setTab('tlauncher');
         });
+        tabSkinsBtn.addEventListener('click', () => {
+            setTab('skins');
+        });
         tabCustomPacksBtn.addEventListener('click', async () => {
             setTab('custom');
             await refreshCustomPacks();
         });
+
+        pickSkinFileBtn.addEventListener('click', () => skinFileInput.click());
+        skinFileInput.addEventListener('change', async () => {
+            const file = skinFileInput.files && skinFileInput.files[0] ? skinFileInput.files[0] : null;
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    await loadSkinFromDataUrl(String(reader.result), 'fichier local');
+                } catch (err) {
+                    skinStudioInfo.innerText = err && err.message ? err.message : String(err);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        loadSkinUrlBtn.addEventListener('click', async () => {
+            const url = skinUrlInput.value.trim();
+            if (!url) {
+                skinStudioInfo.innerText = 'Colle une URL image avant de charger.';
+                return;
+            }
+            loadSkinUrlBtn.disabled = true;
+            loadSkinUrlBtn.innerText = 'Chargement...';
+            const result = await window.launcherAPI.fetchImageDataUrl({ url });
+            loadSkinUrlBtn.disabled = false;
+            loadSkinUrlBtn.innerText = 'Charger URL';
+            if (!result || !result.success || !result.dataUrl) {
+                skinStudioInfo.innerText = 'Import URL échoué: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+            try {
+                await loadSkinFromDataUrl(result.dataUrl, 'URL internet');
+            } catch (err) {
+                skinStudioInfo.innerText = err && err.message ? err.message : String(err);
+            }
+        });
+
+        resetSkinBtn.addEventListener('click', () => {
+            if (!skinSourceImage) {
+                skinStudioInfo.innerText = 'Aucun skin chargé.';
+                return;
+            }
+            resetSkinFilters();
+            skinStudioInfo.innerText = 'Réglages skin réinitialisés.';
+        });
+
+        mirrorSkinBtn.addEventListener('click', () => {
+            if (!skinSourceImage) return;
+            skinMirror = !skinMirror;
+            drawSkinPreview();
+        });
+
+        downloadSkinBtn.addEventListener('click', exportCurrentSkin);
+
+        [skinBrightness, skinContrast, skinSaturate, skinHue].forEach((slider) => {
+            slider.addEventListener('input', () => {
+                skinFilterState.brightness = Number(skinBrightness.value);
+                skinFilterState.contrast = Number(skinContrast.value);
+                skinFilterState.saturate = Number(skinSaturate.value);
+                skinFilterState.hue = Number(skinHue.value);
+                updateSkinFilterLabels();
+                drawSkinPreview();
+            });
+        });
+
+        updateSkinFilterLabels();
+        drawSkinPreview();
 
         importTLauncherBtn.addEventListener('click', async () => {
             importTLauncherBtn.disabled = true;

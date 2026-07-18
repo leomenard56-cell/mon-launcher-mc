@@ -388,27 +388,39 @@ function createWindow() {
             if (syncedMods.length) {
                 mainWindow.webContents.send('mods-installed', { installed: syncedMods, folder: modsFolderPath });
             }
-            if (fs.existsSync(authFilePath)) {
-                const savedData = JSON.parse(fs.readFileSync(authFilePath, 'utf-8'));
-                if (savedData.type === 'crack') {
-                    const offlinePseudo = String(savedData.pseudo || '').trim();
-                    userAuth = Authenticator.getAuth(offlinePseudo);
-                    const displayName = (userAuth && userAuth.name ? String(userAuth.name).trim() : '') || offlinePseudo || 'Joueur';
-                    mainWindow.webContents.send('microsoft-success', { name: displayName, type: 'crack' });
-                } else if (savedData.type === 'microsoft' && savedData.token) {
-                    const authManager = new Auth("select_account");
-                    const xboxManager = await authManager.refresh(savedData.token);
-                    const token = await xboxManager.getMinecraft();
-                    userAuth = token.mclc();
-                    fs.writeFileSync(authFilePath, JSON.stringify({ type: 'microsoft', token: xboxManager.save() }), 'utf-8');
-                    mainWindow.webContents.send('microsoft-success', { name: userAuth.name, type: 'microsoft' });
-                }
+            const restoredAuth = await restoreSavedAuthProfile();
+            if (restoredAuth) {
+                mainWindow.webContents.send('microsoft-success', restoredAuth);
             }
         } catch (err) { console.log("Auto-auth impossible : " + err); }
     });
 }
 
 app.whenReady().then(createWindow);
+
+async function restoreSavedAuthProfile() {
+    if (!fs.existsSync(authFilePath)) return null;
+    const savedData = JSON.parse(fs.readFileSync(authFilePath, 'utf-8'));
+
+    if (savedData.type === 'crack') {
+        const offlinePseudo = String(savedData.pseudo || '').trim();
+        if (!offlinePseudo) return null;
+        userAuth = Authenticator.getAuth(offlinePseudo);
+        const displayName = (userAuth && userAuth.name ? String(userAuth.name).trim() : '') || offlinePseudo || 'Joueur';
+        return { name: displayName, type: 'crack' };
+    }
+
+    if (savedData.type === 'microsoft' && savedData.token) {
+        const authManager = new Auth("select_account");
+        const xboxManager = await authManager.refresh(savedData.token);
+        const token = await xboxManager.getMinecraft();
+        userAuth = token.mclc();
+        fs.writeFileSync(authFilePath, JSON.stringify({ type: 'microsoft', token: xboxManager.save() }), 'utf-8');
+        return { name: userAuth.name, type: 'microsoft' };
+    }
+
+    return null;
+}
 
 const REQUIRED_JAVA_MAJOR = 21;
 
@@ -1452,6 +1464,42 @@ ipcMain.handle('import-tlauncher-profile', async () => {
     }
 });
 
+ipcMain.handle('fetch-image-data-url', async (event, payload = {}) => {
+    try {
+        const rawUrl = String(payload && payload.url ? payload.url : '').trim();
+        if (!rawUrl) return { success: false, error: 'URL image manquante.' };
+
+        let parsed;
+        try {
+            parsed = new URL(rawUrl);
+        } catch (_) {
+            return { success: false, error: 'URL invalide.' };
+        }
+
+        if (!/^https?:$/i.test(parsed.protocol)) {
+            return { success: false, error: 'Seules les URLs http/https sont autorisées.' };
+        }
+
+        const response = await axios.get(parsed.toString(), {
+            responseType: 'arraybuffer',
+            timeout: 20000,
+            maxContentLength: 5 * 1024 * 1024
+        });
+
+        const contentType = String(response && response.headers && response.headers['content-type'] ? response.headers['content-type'] : '').toLowerCase();
+        const accepted = ['image/png', 'image/jpeg', 'image/webp'];
+        const mime = accepted.find(type => contentType.includes(type));
+        if (!mime) {
+            return { success: false, error: `Type image non supporté: ${contentType || 'inconnu'}` };
+        }
+
+        const dataUrl = `data:${mime};base64,${Buffer.from(response.data).toString('base64')}`;
+        return { success: true, dataUrl, mime };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
 ipcMain.on('open-external', (event, url) => {
     try { shell.openExternal(url); } catch (e) { console.error('open-external failed', e); }
 });
@@ -1462,6 +1510,19 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
         mainWindow.webContents.send('launch-finished', { success: false, error: 'Lancement déjà en cours.' });
         return;
     }
+    try {
+        const restoredAuth = await restoreSavedAuthProfile();
+        if (restoredAuth && restoredAuth.type === 'microsoft') {
+            mainWindow.webContents.send('launcher-log', `Session Microsoft rafraîchie pour ${restoredAuth.name}.`);
+        }
+    } catch (authRefreshErr) {
+        userAuth = null;
+        const msg = authRefreshErr && authRefreshErr.message ? authRefreshErr.message : String(authRefreshErr);
+        mainWindow.webContents.send('launcher-log', 'Session Microsoft invalide, reconnectez-vous. Détail: ' + msg);
+        mainWindow.webContents.send('launch-finished', { success: false, error: 'Session invalide. Déconnectez puis reconnectez votre compte Microsoft.' });
+        return;
+    }
+
     if (!userAuth) {
         mainWindow.webContents.send('launcher-log', "Erreur : Connectez-vous !");
         mainWindow.webContents.send('launch-finished', { success: false, error: 'Connectez-vous avant de lancer le jeu.' });
