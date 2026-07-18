@@ -244,11 +244,19 @@
                     <button id="btnCrack" class="btn-connexion" style="background: #2ec4b6;"><i class="fa-solid fa-user-ghost" style="margin-right: 8px;"></i>Se connecter (Crack)</button>
                 </div>
 
+                <div style="background: #16161a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #222;">
+                    <div style="font-size: 11px; color: #555; margin-bottom: 8px; text-transform: uppercase;">Compte Ely.by</div>
+                    <input type="text" id="elyUsernameInput" placeholder="Pseudo ou e-mail Ely.by" style="width: 100%; padding: 12px; border-radius: 6px; border: none; background: #222; color: white; margin-bottom: 10px; font-size: 13px;">
+                    <input type="password" id="elyPasswordInput" placeholder="Mot de passe Ely.by" style="width: 100%; padding: 12px; border-radius: 6px; border: none; background: #222; color: white; margin-bottom: 10px; font-size: 13px;">
+                    <input type="text" id="elyTotpInput" placeholder="Code 2FA (optionnel)" style="width: 100%; padding: 12px; border-radius: 6px; border: none; background: #222; color: white; margin-bottom: 12px; font-size: 13px;">
+                    <button id="btnEly" class="btn-connexion" style="background: #1ea672;"><i class="fa-solid fa-user-check" style="margin-right: 8px;"></i>Connexion Ely.by</button>
+                </div>
+
                 <div style="background: #16161a; padding: 15px; border-radius: 8px; border: 1px solid #222;">
                     <div style="font-size: 11px; color: #555; margin-bottom: 8px; text-transform: uppercase;">Compte Premium</div>
                     <button id="btnMicrosoft" class="btn-connexion" style="background: #0078d4;"><i class="fa-brands fa-windows" style="margin-right: 8px;"></i>Connexion Microsoft</button>
                     <button id="btnLogout" class="btn-connexion" style="background: #e63946; display: none;"><i class="fa-solid fa-right-from-bracket" style="margin-right: 8px;"></i>Déconnexion</button>
-                    <div id="authStatus" class="auth-status">Aucun essai de connexion Microsoft.</div>
+                    <div id="authStatus" class="auth-status">Aucune session premium active.</div>
                 </div>
             </div>
         </div>
@@ -480,6 +488,8 @@
                     <div style="display:flex; gap:8px; margin-top:10px;">
                         <button id="mirrorSkinBtn" class="btn-connexion" style="margin:0; background:#8b5cf6;">Miroir horizontal</button>
                         <button id="applySkinBtn" class="btn-connexion" style="margin:0; background:#16a34a;">Appliquer au launcher</button>
+                        <button id="exportElySkinBtn" class="btn-connexion" style="margin:0; background:#0ea5a4;">Exporter pour Ely.by</button>
+                        <button id="openElyProfileBtn" class="btn-connexion" style="margin:0; background:#1f6feb;">Ouvrir profil Ely.by</button>
                         <button id="downloadSkinBtn" class="btn-connexion" style="margin:0; background:#ff5500;">Exporter PNG</button>
                     </div>
                 </div>
@@ -544,10 +554,10 @@
 
     <script>
         const playBtn = document.getElementById('playBtn'), progressContainer = document.getElementById('progressContainer'), progressBar = document.getElementById('progressBar'), statusText = document.getElementById('status-text'), downloadSize = document.getElementById('downloadSize'), downloadSpeed = document.getElementById('downloadSpeed'), playerNameH3 = document.getElementById('playerName'), playerAvatarDiv = document.getElementById('playerAvatar'), playerStatusP = document.getElementById('playerStatus');
-        const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
+        const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), elyUsernameInput = document.getElementById('elyUsernameInput'), elyPasswordInput = document.getElementById('elyPasswordInput'), elyTotpInput = document.getElementById('elyTotpInput'), btnEly = document.getElementById('btnEly'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
         const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabTLauncherBtn = document.getElementById('tabTLauncherBtn'), tabSkinsBtn = document.getElementById('tabSkinsBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), tlauncherView = document.getElementById('tlauncherView'), skinsView = document.getElementById('skinsView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
         const importTLauncherBtn = document.getElementById('importTLauncherBtn'), tlauncherInfo = document.getElementById('tlauncherInfo'), tlauncherImportedList = document.getElementById('tlauncherImportedList');
-        const skinFileInput = document.getElementById('skinFileInput'), pickSkinFileBtn = document.getElementById('pickSkinFileBtn'), resetSkinBtn = document.getElementById('resetSkinBtn'), skinUrlInput = document.getElementById('skinUrlInput'), loadSkinUrlBtn = document.getElementById('loadSkinUrlBtn'), elyByNicknameInput = document.getElementById('elyByNicknameInput'), loadElyBySkinBtn = document.getElementById('loadElyBySkinBtn'), skinStudioInfo = document.getElementById('skinStudioInfo'), skinPreviewCanvas = document.getElementById('skinPreviewCanvas'), mirrorSkinBtn = document.getElementById('mirrorSkinBtn'), applySkinBtn = document.getElementById('applySkinBtn'), downloadSkinBtn = document.getElementById('downloadSkinBtn');
+        const skinFileInput = document.getElementById('skinFileInput'), pickSkinFileBtn = document.getElementById('pickSkinFileBtn'), resetSkinBtn = document.getElementById('resetSkinBtn'), skinUrlInput = document.getElementById('skinUrlInput'), loadSkinUrlBtn = document.getElementById('loadSkinUrlBtn'), elyByNicknameInput = document.getElementById('elyByNicknameInput'), loadElyBySkinBtn = document.getElementById('loadElyBySkinBtn'), skinStudioInfo = document.getElementById('skinStudioInfo'), skinPreviewCanvas = document.getElementById('skinPreviewCanvas'), mirrorSkinBtn = document.getElementById('mirrorSkinBtn'), applySkinBtn = document.getElementById('applySkinBtn'), exportElySkinBtn = document.getElementById('exportElySkinBtn'), openElyProfileBtn = document.getElementById('openElyProfileBtn'), downloadSkinBtn = document.getElementById('downloadSkinBtn');
         const skinBrightness = document.getElementById('skinBrightness'), skinContrast = document.getElementById('skinContrast'), skinSaturate = document.getElementById('skinSaturate'), skinHue = document.getElementById('skinHue'), skinBrightnessVal = document.getElementById('skinBrightnessVal'), skinContrastVal = document.getElementById('skinContrastVal'), skinSaturateVal = document.getElementById('skinSaturateVal'), skinHueVal = document.getElementById('skinHueVal');
         const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
         const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfResults = document.getElementById('cfResults');
@@ -708,6 +718,24 @@
             a.download = 'kuroverse-skin-edited.png';
             a.click();
             skinStudioInfo.innerText = 'Skin exporté en PNG.';
+        };
+
+        const exportSkinForEly = () => {
+            if (!skinSourceImage) {
+                skinStudioInfo.innerText = 'Aucun skin chargé à exporter pour Ely.by.';
+                return false;
+            }
+            const editedDataUrl = buildCurrentEditedSkinDataUrl();
+            if (!editedDataUrl) {
+                skinStudioInfo.innerText = 'Impossible de préparer le skin pour Ely.by.';
+                return false;
+            }
+            const a = document.createElement('a');
+            a.href = editedDataUrl;
+            a.download = 'elyby-skin.png';
+            a.click();
+            skinStudioInfo.innerText = 'Skin exporté pour Ely.by. Charge ce fichier sur ton profil Ely.by.';
+            return true;
         };
 
         const renderTLauncherImported = (result) => {
@@ -1080,6 +1108,16 @@
             skinStudioInfo.innerText = 'Skin appliqué au launcher.';
         });
 
+        exportElySkinBtn.addEventListener('click', exportSkinForEly);
+
+        openElyProfileBtn.addEventListener('click', () => {
+            const profileUrl = 'https://ely.by/profile';
+            if (window.launcherAPIOpen && window.launcherAPIOpen.openExternal) {
+                window.launcherAPIOpen.openExternal(profileUrl);
+            }
+            skinStudioInfo.innerText = 'Page Ely.by ouverte. Importe le fichier elyby-skin.png sur ton profil.';
+        });
+
         downloadSkinBtn.addEventListener('click', exportCurrentSkin);
 
         [skinBrightness, skinContrast, skinSaturate, skinHue].forEach((slider) => {
@@ -1257,6 +1295,31 @@
             }
         });
 
+        btnEly.addEventListener('click', async () => {
+            const username = elyUsernameInput.value.trim();
+            const password = elyPasswordInput.value.trim();
+            const totp = elyTotpInput.value.trim();
+            if (!username || !password) {
+                statusText.innerText = 'Ely.by: identifiant et mot de passe requis.';
+                return;
+            }
+
+            btnEly.disabled = true;
+            btnEly.innerText = 'Connexion...';
+            setAuthStatus('Connexion Ely.by en cours...', '#fca311');
+
+            const result = await window.launcherAPI.loginEly({ username, password, totp });
+            btnEly.disabled = false;
+            btnEly.innerHTML = '<i class="fa-solid fa-user-check" style="margin-right: 8px;"></i>Connexion Ely.by';
+            if (!result || !result.success || !result.profile) {
+                const errText = (result && result.error) ? result.error : 'Échec inconnu';
+                statusText.innerText = errText;
+                setAuthStatus(errText, '#ff6b6b');
+                return;
+            }
+            location.reload();
+        });
+
         btnMicrosoft.addEventListener('click', () => {
             if (microsoftLoginInProgress) {
                 statusText.innerText = 'Connexion Microsoft déjà en cours...';
@@ -1304,6 +1367,10 @@
                 playerStatusP.innerText = "Mode Hors-ligne";
                 playerStatusP.style.color = "#2ec4b6"; 
                 setAuthStatus('Connecté en mode hors-ligne: ' + displayName, '#2ec4b6');
+            } else if (profile.type === 'ely') {
+                playerStatusP.innerText = "Compte Ely.by Vérifié";
+                playerStatusP.style.color = "#1ea672";
+                setAuthStatus('Connecté Ely.by: ' + displayName, '#1ea672');
             } else {
                 playerStatusP.innerText = "Compte Premium Vérifié";
                 playerStatusP.style.color = "#0078d4"; 

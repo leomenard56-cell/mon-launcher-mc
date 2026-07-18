@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 const axios = require('axios');
 const unzipper = require('unzipper');
@@ -22,6 +23,7 @@ const customModpacksFilePath = path.join(launcherDataPath, 'custom_modpacks.json
 const updateUrlFilePath = path.join(launcherDataPath, 'update_url.txt');
 const launcherSettingsFilePath = path.join(launcherDataPath, 'launcher_settings.json');
 const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
+const ELY_AUTH_BASE = 'https://authserver.ely.by';
 const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
 const DEFAULT_LAUNCHER_SETTINGS = {
     windowWidth: 1000,
@@ -420,7 +422,76 @@ async function restoreSavedAuthProfile() {
         return { name: userAuth.name, type: 'microsoft' };
     }
 
+    if (savedData.type === 'ely' && savedData.accessToken && savedData.clientToken) {
+        const refreshResponse = await axios.post(
+            `${ELY_AUTH_BASE}/auth/refresh`,
+            {
+                accessToken: savedData.accessToken,
+                clientToken: savedData.clientToken,
+                requestUser: true
+            },
+            { timeout: 20000 }
+        );
+
+        const body = refreshResponse && refreshResponse.data ? refreshResponse.data : {};
+        const selectedProfile = body.selectedProfile || {};
+        const profileId = String(selectedProfile.id || '').replace(/-/g, '').trim();
+        const profileName = String(selectedProfile.name || '').trim();
+        const accessToken = String(body.accessToken || '').trim();
+        const clientToken = String(body.clientToken || savedData.clientToken || '').trim();
+
+        if (!profileId || !profileName || !accessToken || !clientToken) return null;
+
+        userAuth = {
+            access_token: accessToken,
+            client_token: clientToken,
+            uuid: profileId,
+            name: profileName,
+            user_properties: []
+        };
+
+        fs.writeFileSync(authFilePath, JSON.stringify({
+            type: 'ely',
+            accessToken,
+            clientToken,
+            profileId,
+            profileName
+        }), 'utf-8');
+
+        return { name: profileName, type: 'ely' };
+    }
+
     return null;
+}
+
+function buildClientToken() {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    return crypto.randomBytes(16).toString('hex');
+}
+
+function formatElyError(err) {
+    const response = err && err.response ? err.response : null;
+    const status = response ? Number(response.status) : 0;
+    const data = response && response.data ? response.data : null;
+    const message = String(
+        (data && (data.errorMessage || data.error)) ||
+        (err && err.message) ||
+        'Erreur Ely.by inconnue'
+    );
+
+    if (status === 401 && /two factor auth/i.test(message)) {
+        return 'Ely.by: compte protégé par 2FA, ajoute le code TOTP.';
+    }
+    if (status === 401) {
+        return 'Ely.by: identifiants invalides.';
+    }
+    if (status === 403) {
+        return 'Ely.by: accès refusé.';
+    }
+    if (status === 404) {
+        return 'Ely.by: service introuvable.';
+    }
+    return `Ely.by: ${message}`;
 }
 
 const REQUIRED_JAVA_MAJOR = 21;
@@ -888,6 +959,61 @@ ipcMain.handle('set-auth', async (event, data) => {
         return { success: true };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
+    }
+});
+
+ipcMain.handle('login-ely', async (event, payload = {}) => {
+    try {
+        const username = String(payload.username || '').trim();
+        const password = String(payload.password || '').trim();
+        const totp = String(payload.totp || '').trim();
+        if (!username || !password) {
+            return { success: false, error: 'Ely.by: identifiant et mot de passe requis.' };
+        }
+
+        const clientToken = buildClientToken();
+        const passwordField = totp ? `${password}:${totp}` : password;
+        const response = await axios.post(
+            `${ELY_AUTH_BASE}/auth/authenticate`,
+            {
+                username,
+                password: passwordField,
+                clientToken,
+                requestUser: true
+            },
+            { timeout: 20000 }
+        );
+
+        const body = response && response.data ? response.data : {};
+        const selectedProfile = body.selectedProfile || {};
+        const profileId = String(selectedProfile.id || '').replace(/-/g, '').trim();
+        const profileName = String(selectedProfile.name || '').trim();
+        const accessToken = String(body.accessToken || '').trim();
+        const resolvedClientToken = String(body.clientToken || clientToken).trim();
+        if (!profileId || !profileName || !accessToken || !resolvedClientToken) {
+            return { success: false, error: 'Ely.by: réponse invalide du serveur auth.' };
+        }
+
+        userAuth = {
+            access_token: accessToken,
+            client_token: resolvedClientToken,
+            uuid: profileId,
+            name: profileName,
+            user_properties: []
+        };
+
+        ensureLauncherDataDirectories();
+        fs.writeFileSync(authFilePath, JSON.stringify({
+            type: 'ely',
+            accessToken,
+            clientToken: resolvedClientToken,
+            profileId,
+            profileName
+        }), 'utf-8');
+
+        return { success: true, profile: { name: profileName, type: 'ely' } };
+    } catch (err) {
+        return { success: false, error: formatElyError(err) };
     }
 });
 

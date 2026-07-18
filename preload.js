@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     
     // Fonctions de connexion
     setAuthData: (data) => ipcRenderer.invoke('set-auth', data),
+    loginEly: (payload) => ipcRenderer.invoke('login-ely', payload),
     loginMicrosoft: () => ipcRenderer.send('login-microsoft'),
     logout: () => ipcRenderer.invoke('logout'), // Ajouté pour le bouton déconnexion
     
