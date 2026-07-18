@@ -21,6 +21,7 @@ const curseForgeKeyFilePath = path.join(launcherDataPath, 'curseforge_api_key.tx
 const customModpacksFilePath = path.join(launcherDataPath, 'custom_modpacks.json');
 const updateUrlFilePath = path.join(launcherDataPath, 'update_url.txt');
 const launcherSettingsFilePath = path.join(launcherDataPath, 'launcher_settings.json');
+const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
 const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
 const DEFAULT_LAUNCHER_SETTINGS = {
     windowWidth: 1000,
@@ -677,6 +678,28 @@ function readCustomModpacks() {
 function writeCustomModpacks(entries) {
     ensureLauncherDataDirectories();
     fs.writeFileSync(customModpacksFilePath, JSON.stringify(entries, null, 2), 'utf-8');
+}
+
+function readLauncherSkinDataUrl() {
+    ensureLauncherDataDirectories();
+    if (!fs.existsSync(launcherSkinFilePath)) return '';
+    try {
+        const parsed = JSON.parse(fs.readFileSync(launcherSkinFilePath, 'utf-8'));
+        const dataUrl = parsed && typeof parsed.dataUrl === 'string' ? parsed.dataUrl.trim() : '';
+        if (!/^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(dataUrl)) return '';
+        return dataUrl;
+    } catch (_) {
+        return '';
+    }
+}
+
+function writeLauncherSkinDataUrl(dataUrl) {
+    ensureLauncherDataDirectories();
+    const payload = {
+        dataUrl,
+        updatedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(launcherSkinFilePath, JSON.stringify(payload, null, 2), 'utf-8');
 }
 
 function upsertCustomModpackEntry(entry) {
@@ -1497,6 +1520,35 @@ ipcMain.handle('fetch-image-data-url', async (event, payload = {}) => {
         return { success: true, dataUrl, mime };
     } catch (err) {
         return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
+ipcMain.handle('save-launcher-skin', async (event, payload = {}) => {
+    try {
+        const dataUrl = String(payload && payload.dataUrl ? payload.dataUrl : '').trim();
+        if (!dataUrl) return { success: false, error: 'Skin vide.' };
+        const match = dataUrl.match(/^data:image\/(png|jpeg|webp);base64,([a-z0-9+/=]+)$/i);
+        if (!match) return { success: false, error: 'Format de skin non supporté.' };
+
+        const rawBase64 = match[2] || '';
+        const approxBytes = Math.floor(rawBase64.length * 0.75);
+        if (approxBytes > 8 * 1024 * 1024) {
+            return { success: false, error: 'Skin trop volumineux (max 8 Mo).' };
+        }
+
+        writeLauncherSkinDataUrl(dataUrl);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
+ipcMain.handle('get-launcher-skin', async () => {
+    try {
+        const dataUrl = readLauncherSkinDataUrl();
+        return { success: true, dataUrl: dataUrl || null };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err), dataUrl: null };
     }
 });
 

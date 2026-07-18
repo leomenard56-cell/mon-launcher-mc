@@ -450,6 +450,10 @@
                         <input id="skinUrlInput" class="cf-control" type="text" placeholder="URL d'un skin .png (internet)">
                         <button id="loadSkinUrlBtn" class="btn-connexion" style="margin:0; background:#3b82f6;">Charger URL</button>
                     </div>
+                    <div class="skin-url-row">
+                        <input id="elyByNicknameInput" class="cf-control" type="text" placeholder="Pseudo Ely.by (ex: erickskrauch)">
+                        <button id="loadElyBySkinBtn" class="btn-connexion" style="margin:0; background:#2ec4b6;">Charger Ely.by</button>
+                    </div>
                     <p class="small-note" id="skinStudioInfo">Importe un skin PNG 64x64 (ou charge une URL), puis ajuste les réglages.</p>
                     <hr style="border-color:#2b3950; margin:12px 0;">
                     <h2 style="font-size:18px; margin-bottom:10px;">Modifier</h2>
@@ -475,6 +479,7 @@
                     </div>
                     <div style="display:flex; gap:8px; margin-top:10px;">
                         <button id="mirrorSkinBtn" class="btn-connexion" style="margin:0; background:#8b5cf6;">Miroir horizontal</button>
+                        <button id="applySkinBtn" class="btn-connexion" style="margin:0; background:#16a34a;">Appliquer au launcher</button>
                         <button id="downloadSkinBtn" class="btn-connexion" style="margin:0; background:#ff5500;">Exporter PNG</button>
                     </div>
                 </div>
@@ -542,7 +547,7 @@
         const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
         const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabTLauncherBtn = document.getElementById('tabTLauncherBtn'), tabSkinsBtn = document.getElementById('tabSkinsBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), tlauncherView = document.getElementById('tlauncherView'), skinsView = document.getElementById('skinsView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
         const importTLauncherBtn = document.getElementById('importTLauncherBtn'), tlauncherInfo = document.getElementById('tlauncherInfo'), tlauncherImportedList = document.getElementById('tlauncherImportedList');
-        const skinFileInput = document.getElementById('skinFileInput'), pickSkinFileBtn = document.getElementById('pickSkinFileBtn'), resetSkinBtn = document.getElementById('resetSkinBtn'), skinUrlInput = document.getElementById('skinUrlInput'), loadSkinUrlBtn = document.getElementById('loadSkinUrlBtn'), skinStudioInfo = document.getElementById('skinStudioInfo'), skinPreviewCanvas = document.getElementById('skinPreviewCanvas'), mirrorSkinBtn = document.getElementById('mirrorSkinBtn'), downloadSkinBtn = document.getElementById('downloadSkinBtn');
+        const skinFileInput = document.getElementById('skinFileInput'), pickSkinFileBtn = document.getElementById('pickSkinFileBtn'), resetSkinBtn = document.getElementById('resetSkinBtn'), skinUrlInput = document.getElementById('skinUrlInput'), loadSkinUrlBtn = document.getElementById('loadSkinUrlBtn'), elyByNicknameInput = document.getElementById('elyByNicknameInput'), loadElyBySkinBtn = document.getElementById('loadElyBySkinBtn'), skinStudioInfo = document.getElementById('skinStudioInfo'), skinPreviewCanvas = document.getElementById('skinPreviewCanvas'), mirrorSkinBtn = document.getElementById('mirrorSkinBtn'), applySkinBtn = document.getElementById('applySkinBtn'), downloadSkinBtn = document.getElementById('downloadSkinBtn');
         const skinBrightness = document.getElementById('skinBrightness'), skinContrast = document.getElementById('skinContrast'), skinSaturate = document.getElementById('skinSaturate'), skinHue = document.getElementById('skinHue'), skinBrightnessVal = document.getElementById('skinBrightnessVal'), skinContrastVal = document.getElementById('skinContrastVal'), skinSaturateVal = document.getElementById('skinSaturateVal'), skinHueVal = document.getElementById('skinHueVal');
         const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
         const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfResults = document.getElementById('cfResults');
@@ -557,6 +562,7 @@
         const curseForgeState = { index: 0, pageSize: 20, totalCount: 0, type: 'mods' };
         let skinSourceImage = null;
         let skinMirror = false;
+        let appliedLauncherSkinDataUrl = null;
 
         const skinFilterState = {
             brightness: 1,
@@ -651,11 +657,8 @@
             });
         };
 
-        const exportCurrentSkin = () => {
-            if (!skinSourceImage) {
-                skinStudioInfo.innerText = 'Aucun skin chargé à exporter.';
-                return;
-            }
+        const buildCurrentEditedSkinDataUrl = () => {
+            if (!skinSourceImage) return null;
             const out = document.createElement('canvas');
             out.width = 64;
             out.height = 64;
@@ -669,8 +672,39 @@
             } else {
                 octx.drawImage(skinSourceImage, 0, 0, 64, 64);
             }
+            return out.toDataURL('image/png');
+        };
+
+        const updatePlayerAvatar = (displayName) => {
+            if (appliedLauncherSkinDataUrl) {
+                playerAvatarDiv.style.backgroundImage = `url('${appliedLauncherSkinDataUrl}')`;
+                playerAvatarDiv.style.backgroundSize = 'cover';
+                return;
+            }
+            playerAvatarDiv.style.backgroundImage = `url('https://minotar.net/helm/${displayName}/40.png')`;
+            playerAvatarDiv.style.backgroundSize = 'cover';
+        };
+
+        const loadAppliedLauncherSkin = async () => {
+            if (!window.launcherAPI || !window.launcherAPI.getLauncherSkin) return;
+            const result = await window.launcherAPI.getLauncherSkin();
+            if (result && result.success && result.dataUrl) {
+                appliedLauncherSkinDataUrl = result.dataUrl;
+            }
+        };
+
+        const exportCurrentSkin = () => {
+            if (!skinSourceImage) {
+                skinStudioInfo.innerText = 'Aucun skin chargé à exporter.';
+                return;
+            }
+            const editedDataUrl = buildCurrentEditedSkinDataUrl();
+            if (!editedDataUrl) {
+                skinStudioInfo.innerText = 'Aucun skin chargé à exporter.';
+                return;
+            }
             const a = document.createElement('a');
-            a.href = out.toDataURL('image/png');
+            a.href = editedDataUrl;
             a.download = 'kuroverse-skin-edited.png';
             a.click();
             skinStudioInfo.innerText = 'Skin exporté en PNG.';
@@ -980,6 +1014,32 @@
             }
         });
 
+        loadElyBySkinBtn.addEventListener('click', async () => {
+            const nickname = elyByNicknameInput.value.trim();
+            if (!nickname) {
+                skinStudioInfo.innerText = 'Entre un pseudo Ely.by avant de charger.';
+                return;
+            }
+            const encoded = encodeURIComponent(nickname);
+            const url = `https://skinsystem.ely.by/skins/${encoded}.png?version=2`;
+            loadElyBySkinBtn.disabled = true;
+            loadElyBySkinBtn.innerText = 'Chargement...';
+            const result = await window.launcherAPI.fetchImageDataUrl({ url });
+            loadElyBySkinBtn.disabled = false;
+            loadElyBySkinBtn.innerText = 'Charger Ely.by';
+
+            if (!result || !result.success || !result.dataUrl) {
+                skinStudioInfo.innerText = 'Ely.by: skin introuvable pour ce pseudo ou erreur réseau.';
+                return;
+            }
+
+            try {
+                await loadSkinFromDataUrl(result.dataUrl, `Ely.by (${nickname})`);
+            } catch (err) {
+                skinStudioInfo.innerText = err && err.message ? err.message : String(err);
+            }
+        });
+
         resetSkinBtn.addEventListener('click', () => {
             if (!skinSourceImage) {
                 skinStudioInfo.innerText = 'Aucun skin chargé.';
@@ -993,6 +1053,31 @@
             if (!skinSourceImage) return;
             skinMirror = !skinMirror;
             drawSkinPreview();
+        });
+
+        applySkinBtn.addEventListener('click', async () => {
+            if (!skinSourceImage) {
+                skinStudioInfo.innerText = 'Charge un skin avant de l\'appliquer.';
+                return;
+            }
+            const editedDataUrl = buildCurrentEditedSkinDataUrl();
+            if (!editedDataUrl) {
+                skinStudioInfo.innerText = 'Impossible de préparer le skin.';
+                return;
+            }
+            applySkinBtn.disabled = true;
+            applySkinBtn.innerText = 'Application...';
+            const result = await window.launcherAPI.saveLauncherSkin({ dataUrl: editedDataUrl });
+            applySkinBtn.disabled = false;
+            applySkinBtn.innerText = 'Appliquer au launcher';
+            if (!result || !result.success) {
+                skinStudioInfo.innerText = 'Application échouée: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+            appliedLauncherSkinDataUrl = editedDataUrl;
+            const displayedName = (playerNameH3.innerText || 'Utilisateur').trim() || 'Utilisateur';
+            updatePlayerAvatar(displayedName);
+            skinStudioInfo.innerText = 'Skin appliqué au launcher.';
         });
 
         downloadSkinBtn.addEventListener('click', exportCurrentSkin);
@@ -1010,6 +1095,10 @@
 
         updateSkinFilterLabels();
         drawSkinPreview();
+        loadAppliedLauncherSkin().then(() => {
+            const displayedName = (playerNameH3.innerText || 'Utilisateur').trim() || 'Utilisateur';
+            updatePlayerAvatar(displayedName);
+        });
 
         importTLauncherBtn.addEventListener('click', async () => {
             importTLauncherBtn.disabled = true;
@@ -1205,7 +1294,7 @@
             const displayName = profile.name || 'Utilisateur';
             playerNameH3.innerText = displayName;
             playerNameH3.style.color = "white";
-            playerAvatarDiv.style.backgroundImage = `url('https://minotar.net/helm/${displayName}/40.png')`;
+            updatePlayerAvatar(displayName);
             btnMicrosoft.disabled = false;
             btnMicrosoft.innerText = "Connecté !";
             const deviceModal = document.getElementById('deviceModal');

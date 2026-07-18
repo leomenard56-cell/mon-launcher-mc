@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     getLauncherSettings: () => ipcRenderer.invoke('get-launcher-settings'),
     saveLauncherSettings: (payload) => ipcRenderer.invoke('save-launcher-settings', payload),
     fetchImageDataUrl: (payload) => ipcRenderer.invoke('fetch-image-data-url', payload),
+    saveLauncherSkin: (payload) => ipcRenderer.invoke('save-launcher-skin', payload),
+    getLauncherSkin: () => ipcRenderer.invoke('get-launcher-skin'),
     
     // Fonctions de connexion
     setAuthData: (data) => ipcRenderer.invoke('set-auth', data),
