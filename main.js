@@ -11,11 +11,13 @@ const { Auth } = require('msmc');
 const launcher = new Client();
 let mainWindow;
 let userAuth = null; 
+let currentAuthType = null;
 let loginInProgress = false;
 let gameLaunchInProgress = false;
 const launcherDataPath = path.join(app.getPath('userData'), '.mon-launcher');
 const modsFolderPath = path.join(launcherDataPath, 'mods');
 const appModsPath = path.join(__dirname, 'mods');
+const authlibInjectorJarPath = path.join(launcherDataPath, 'authlib-injector.jar');
 
 const authFilePath = path.join(launcherDataPath, 'auth.json');
 const curseForgeKeyFilePath = path.join(launcherDataPath, 'curseforge_api_key.txt');
@@ -410,6 +412,7 @@ async function restoreSavedAuthProfile() {
         if (!offlinePseudo) return null;
         userAuth = Authenticator.getAuth(offlinePseudo);
         const displayName = (userAuth && userAuth.name ? String(userAuth.name).trim() : '') || offlinePseudo || 'Joueur';
+        currentAuthType = 'crack';
         return { name: displayName, type: 'crack' };
     }
 
@@ -419,6 +422,7 @@ async function restoreSavedAuthProfile() {
         const token = await xboxManager.getMinecraft();
         userAuth = token.mclc();
         fs.writeFileSync(authFilePath, JSON.stringify({ type: 'microsoft', token: xboxManager.save() }), 'utf-8');
+        currentAuthType = 'microsoft';
         return { name: userAuth.name, type: 'microsoft' };
     }
 
@@ -449,6 +453,7 @@ async function restoreSavedAuthProfile() {
             name: profileName,
             user_properties: []
         };
+        currentAuthType = 'ely';
 
         fs.writeFileSync(authFilePath, JSON.stringify({
             type: 'ely',
@@ -461,6 +466,7 @@ async function restoreSavedAuthProfile() {
         return { name: profileName, type: 'ely' };
     }
 
+    currentAuthType = null;
     return null;
 }
 
@@ -492,6 +498,55 @@ function formatElyError(err) {
         return 'Ely.by: service introuvable.';
     }
     return `Ely.by: ${message}`;
+}
+
+async function fetchAuthlibInjectorDownloadUrl() {
+    try {
+        const release = await axios.get('https://api.github.com/repos/yushijinhun/authlib-injector/releases/latest', {
+            timeout: 20000,
+            headers: {
+                Accept: 'application/vnd.github+json',
+                'User-Agent': 'KuroVerseLauncher'
+            }
+        });
+        const assets = Array.isArray(release && release.data && release.data.assets) ? release.data.assets : [];
+        const preferred = assets.find((asset) => /authlib-injector-.*\.jar$/i.test(String(asset && asset.name ? asset.name : '')));
+        if (preferred && preferred.browser_download_url) {
+            return String(preferred.browser_download_url);
+        }
+    } catch (_) { }
+
+    const mirror = await axios.get('https://bmclapi2.bangbang93.com/mirrors/authlib-injector/artifact/latest.json', {
+        timeout: 20000
+    });
+    const data = mirror && mirror.data ? mirror.data : {};
+    if (!data.download_url) throw new Error('URL authlib-injector introuvable.');
+    return String(data.download_url);
+}
+
+async function resolveAuthlibInjectorJar() {
+    ensureLauncherDataDirectories();
+    if (fs.existsSync(authlibInjectorJarPath)) return authlibInjectorJarPath;
+
+    const downloadUrl = await fetchAuthlibInjectorDownloadUrl();
+    const tmpPath = `${authlibInjectorJarPath}.tmp`;
+    const response = await axios({
+        url: downloadUrl,
+        method: 'GET',
+        responseType: 'stream',
+        timeout: 60000,
+        maxRedirects: 10
+    });
+
+    await new Promise((resolve, reject) => {
+        const writer = fs.createWriteStream(tmpPath);
+        response.data.pipe(writer);
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
+
+    fs.renameSync(tmpPath, authlibInjectorJarPath);
+    return authlibInjectorJarPath;
 }
 
 const REQUIRED_JAVA_MAJOR = 21;
@@ -954,6 +1009,7 @@ ipcMain.handle('set-auth', async (event, data) => {
             return { success: false, error: 'Pseudo hors-ligne invalide.' };
         }
         userAuth = Authenticator.getAuth(offlinePseudo);
+        currentAuthType = 'crack';
         if (!fs.existsSync(path.dirname(authFilePath))) fs.mkdirSync(path.dirname(authFilePath), { recursive: true });
         fs.writeFileSync(authFilePath, JSON.stringify({ type: 'crack', pseudo: offlinePseudo }), 'utf-8');
         return { success: true };
@@ -1001,6 +1057,7 @@ ipcMain.handle('login-ely', async (event, payload = {}) => {
             name: profileName,
             user_properties: []
         };
+        currentAuthType = 'ely';
 
         ensureLauncherDataDirectories();
         fs.writeFileSync(authFilePath, JSON.stringify({
@@ -1062,6 +1119,7 @@ ipcMain.on('login-microsoft', async (event) => {
                 throw new Error('Aucun token Microsoft valide reçu.');
             }
             userAuth = minecraftToken.mclc();
+            currentAuthType = 'microsoft';
             if (!userAuth || !userAuth.name) {
                 throw new Error('Impossible de récupérer le profil Microsoft après connexion.');
             }
@@ -1174,6 +1232,7 @@ ipcMain.on('login-microsoft', async (event) => {
 ipcMain.handle('logout', async () => {
     try {
         userAuth = null;
+        currentAuthType = null;
         if (fs.existsSync(authFilePath)) fs.unlinkSync(authFilePath);
         return { success: true };
     } catch (err) {
@@ -1692,6 +1751,8 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
         const restoredAuth = await restoreSavedAuthProfile();
         if (restoredAuth && restoredAuth.type === 'microsoft') {
             mainWindow.webContents.send('launcher-log', `Session Microsoft rafraîchie pour ${restoredAuth.name}.`);
+        } else if (restoredAuth && restoredAuth.type === 'ely') {
+            mainWindow.webContents.send('launcher-log', `Session Ely.by rafraîchie pour ${restoredAuth.name}.`);
         }
     } catch (authRefreshErr) {
         userAuth = null;
@@ -1756,6 +1817,17 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
             javaPath: javaPath,
             memory: { max: `${memoryMaxGb}G`, min: `${memoryMinGb}G` }
         };
+
+        if (currentAuthType === 'ely') {
+            try {
+                const injectorJar = await resolveAuthlibInjectorJar();
+                baseOpts.customArgs = [`-javaagent:${injectorJar}=ely.by`];
+                mainWindow.webContents.send('launcher-log', 'Authlib Ely.by activé pour ce lancement.');
+            } catch (injectErr) {
+                const injectMsg = injectErr && injectErr.message ? injectErr.message : String(injectErr);
+                mainWindow.webContents.send('launcher-log', `Authlib Ely.by non chargé (${injectMsg}). Le skin Ely.by peut ne pas apparaître.`);
+            }
+        }
 
         launcher.removeAllListeners('close');
         launcher.removeAllListeners('error');

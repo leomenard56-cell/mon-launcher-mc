@@ -1,5 +1,5 @@
 {
-  "version": "1.0.23",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.23/KuroVerse-Setup-1.0.23.exe",
-  "notes": "Connexion Ely.by + export Skin Studio compatible profil Ely.by"
+  "version": "1.0.24",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.24/KuroVerse-Setup-1.0.24.exe",
+  "notes": "Fix skin Ely.by en jeu: injection authlib automatique au lancement"
 }
