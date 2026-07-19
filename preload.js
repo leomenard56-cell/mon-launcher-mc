@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     searchCurseForge: (payload) => ipcRenderer.invoke('curseforge-search', payload),
     installCurseForgeProject: (payload) => ipcRenderer.invoke('curseforge-install-latest', payload),
     getCurseForgeKeyStatus: () => ipcRenderer.invoke('curseforge-key-status'),
+    setCurseForgeKey: (payload) => ipcRenderer.invoke('set-curseforge-key', payload),
     listCustomModpacks: () => ipcRenderer.invoke('list-custom-modpacks'),
     createCustomModpack: (payload) => ipcRenderer.invoke('create-custom-modpack', payload),
     checkCustomModpacksUpdates: () => ipcRenderer.invoke('check-custom-modpacks-updates'),

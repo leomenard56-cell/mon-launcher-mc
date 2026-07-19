@@ -25,6 +25,7 @@ const customModpacksFilePath = path.join(launcherDataPath, 'custom_modpacks.json
 const updateUrlFilePath = path.join(launcherDataPath, 'update_url.txt');
 const launcherSettingsFilePath = path.join(launcherDataPath, 'launcher_settings.json');
 const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
+const ownerCurseForgeKeyPath = path.join(__dirname, 'owner_curseforge_key.txt');
 const ELY_AUTH_BASE = 'https://authserver.ely.by';
 const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
 const DEFAULT_LAUNCHER_SETTINGS = {
@@ -123,12 +124,30 @@ function listInstalledModFiles() {
 }
 
 function getCurseForgeApiKey() {
+    if (fs.existsSync(ownerCurseForgeKeyPath)) {
+        const ownerKey = String(fs.readFileSync(ownerCurseForgeKeyPath, 'utf-8') || '').trim();
+        if (ownerKey && ownerKey !== 'PASTE_OWNER_CURSEFORGE_API_KEY_HERE') {
+            return { key: ownerKey, source: 'owner-file' };
+        }
+    }
+
     const fromEnv = (process.env.CURSEFORGE_API_KEY || '').trim();
-    if (fromEnv) return fromEnv;
+    if (fromEnv) return { key: fromEnv, source: 'env' };
     if (!fs.existsSync(curseForgeKeyFilePath)) return null;
     const fromFile = String(fs.readFileSync(curseForgeKeyFilePath, 'utf-8') || '').trim();
     if (!fromFile || fromFile === 'PASTE_CURSEFORGE_API_KEY_HERE') return null;
-    return fromFile;
+    return { key: fromFile, source: 'user-file' };
+}
+
+function saveCurseForgeApiKey(rawKey) {
+    const key = String(rawKey || '').trim();
+    ensureLauncherDataDirectories();
+    if (!key) {
+        if (fs.existsSync(curseForgeKeyFilePath)) fs.unlinkSync(curseForgeKeyFilePath);
+        return '';
+    }
+    fs.writeFileSync(curseForgeKeyFilePath, `${key}\n`, 'utf-8');
+    return key;
 }
 
 function getSafeFileNameFromUrl(downloadUrl, fallback) {
@@ -218,7 +237,8 @@ async function importCurseForgePackFromZip(zipPath) {
     const remoteFiles = manifest && Array.isArray(manifest.files)
         ? manifest.files.filter(f => f && f.projectID && f.fileID && f.required !== false)
         : [];
-    const apiKey = getCurseForgeApiKey();
+    const apiKeyInfo = getCurseForgeApiKey();
+    const apiKey = apiKeyInfo && apiKeyInfo.key ? apiKeyInfo.key : null;
     const downloadedMods = [];
     const failedDownloads = [];
 
@@ -1447,12 +1467,41 @@ ipcMain.handle('install-custom-modpack-update', async (event, payload = {}) => {
 
 ipcMain.handle('curseforge-key-status', async () => {
     try {
-        const apiKey = getCurseForgeApiKey();
+        const apiKeyInfo = getCurseForgeApiKey();
+        const apiKey = apiKeyInfo && apiKeyInfo.key ? apiKeyInfo.key : null;
+        const source = apiKeyInfo && apiKeyInfo.source ? apiKeyInfo.source : null;
         return {
             success: true,
             configured: !!apiKey,
+            fromEnv: !!(process.env.CURSEFORGE_API_KEY || '').trim(),
+            fromOwner: source === 'owner-file',
+            source,
             keyFilePath: curseForgeKeyFilePath,
-            message: apiKey ? 'Clé CurseForge détectée.' : 'Clé CurseForge absente.'
+            maskedKey: apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : '',
+            message: apiKey
+                ? (source === 'owner-file' ? 'Clé CurseForge globale (propriétaire) active.' : 'Clé CurseForge détectée.')
+                : 'Clé CurseForge absente.'
+        };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+});
+
+ipcMain.handle('set-curseforge-key', async (event, payload = {}) => {
+    try {
+        const existing = getCurseForgeApiKey();
+        if (existing && existing.source === 'owner-file') {
+            return {
+                success: false,
+                error: 'Clé utilisateur désactivée: la clé globale propriétaire est active.'
+            };
+        }
+        const key = saveCurseForgeApiKey(payload && payload.key ? payload.key : '');
+        return {
+            success: true,
+            configured: !!key,
+            maskedKey: key ? `${key.slice(0, 4)}...${key.slice(-4)}` : '',
+            message: key ? 'Clé CurseForge enregistrée.' : 'Clé CurseForge supprimée.'
         };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
@@ -1461,11 +1510,12 @@ ipcMain.handle('curseforge-key-status', async () => {
 
 ipcMain.handle('curseforge-search', async (event, payload = {}) => {
     try {
-        const apiKey = getCurseForgeApiKey();
+        const apiKeyInfo = getCurseForgeApiKey();
+        const apiKey = apiKeyInfo && apiKeyInfo.key ? apiKeyInfo.key : null;
         if (!apiKey) {
             return {
                 success: false,
-                error: `Clé API CurseForge manquante. Ajoute-la dans ${curseForgeKeyFilePath}`
+                error: 'Clé API CurseForge manquante. Ajoute-la dans le champ CurseForge du launcher.'
             };
         }
 
@@ -1536,11 +1586,12 @@ ipcMain.handle('curseforge-search', async (event, payload = {}) => {
 ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
     try {
         ensureLauncherDataDirectories();
-        const apiKey = getCurseForgeApiKey();
+        const apiKeyInfo = getCurseForgeApiKey();
+        const apiKey = apiKeyInfo && apiKeyInfo.key ? apiKeyInfo.key : null;
         if (!apiKey) {
             return {
                 success: false,
-                error: `Clé API CurseForge manquante. Ajoute-la dans ${curseForgeKeyFilePath}`
+                error: 'Clé API CurseForge manquante. Ajoute-la dans le champ CurseForge du launcher.'
             };
         }
 

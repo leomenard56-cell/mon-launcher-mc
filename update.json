@@ -1,5 +1,5 @@
 {
-  "version": "1.0.25",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.25/KuroVerse-Setup-1.0.25.exe",
-  "notes": "Skin Studio: vision 3D + UI Mods/Pack réorganisée"
+  "version": "1.0.26",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.26/KuroVerse-Setup-1.0.26.exe",
+  "notes": "CurseForge: clé propriétaire globale + gestion clé API intégrée dans l'UI"
 }

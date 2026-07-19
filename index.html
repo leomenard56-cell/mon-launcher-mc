@@ -419,6 +419,11 @@
                             <button id="cfNextBtn" class="btn-connexion" style="margin:0; background:#2e2e45; width:auto; padding:10px 14px;">&gt;</button>
                             <div id="cfPageLabel" class="small-note" style="align-self:center;">Page 1</div>
                         </div>
+                        <div style="display:grid; grid-template-columns: 1fr auto auto; gap:8px; margin-bottom:10px;">
+                            <input id="cfApiKeyInput" class="cf-control" type="password" placeholder="Colle ta clé API CurseForge ici">
+                            <button id="cfSaveKeyBtn" class="btn-connexion" style="margin:0; background:#2563eb; width:auto; padding:10px 14px;">Enregistrer clé</button>
+                            <button id="cfClearKeyBtn" class="btn-connexion" style="margin:0; background:#6b7280; width:auto; padding:10px 14px;">Effacer</button>
+                        </div>
                         <p class="small-note" id="cfInfo">Ajoute ta clé API pour activer la recherche CurseForge.</p>
                     </div>
                     <div class="panel-card">
@@ -600,7 +605,7 @@
         const skinFileInput = document.getElementById('skinFileInput'), pickSkinFileBtn = document.getElementById('pickSkinFileBtn'), resetSkinBtn = document.getElementById('resetSkinBtn'), skinUrlInput = document.getElementById('skinUrlInput'), loadSkinUrlBtn = document.getElementById('loadSkinUrlBtn'), elyByNicknameInput = document.getElementById('elyByNicknameInput'), loadElyBySkinBtn = document.getElementById('loadElyBySkinBtn'), skinStudioInfo = document.getElementById('skinStudioInfo'), skinPreviewCanvas = document.getElementById('skinPreviewCanvas'), skin3dCanvas = document.getElementById('skin3dCanvas'), skin3dInfo = document.getElementById('skin3dInfo'), toggleSkin3DRotateBtn = document.getElementById('toggleSkin3DRotateBtn'), resetSkin3DCameraBtn = document.getElementById('resetSkin3DCameraBtn'), mirrorSkinBtn = document.getElementById('mirrorSkinBtn'), applySkinBtn = document.getElementById('applySkinBtn'), exportElySkinBtn = document.getElementById('exportElySkinBtn'), openElyProfileBtn = document.getElementById('openElyProfileBtn'), downloadSkinBtn = document.getElementById('downloadSkinBtn');
         const skinBrightness = document.getElementById('skinBrightness'), skinContrast = document.getElementById('skinContrast'), skinSaturate = document.getElementById('skinSaturate'), skinHue = document.getElementById('skinHue'), skinBrightnessVal = document.getElementById('skinBrightnessVal'), skinContrastVal = document.getElementById('skinContrastVal'), skinSaturateVal = document.getElementById('skinSaturateVal'), skinHueVal = document.getElementById('skinHueVal');
         const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
-        const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfResults = document.getElementById('cfResults');
+        const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfApiKeyInput = document.getElementById('cfApiKeyInput'), cfSaveKeyBtn = document.getElementById('cfSaveKeyBtn'), cfClearKeyBtn = document.getElementById('cfClearKeyBtn'), cfResults = document.getElementById('cfResults');
         const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
         const settingsBtn = document.getElementById('settingsBtn'), settingsOverlay = document.getElementById('settingsOverlay'), closeSettingsBtn = document.getElementById('closeSettingsBtn'), saveSettingsBtn = document.getElementById('saveSettingsBtn'), launcherWidthInput = document.getElementById('launcherWidthInput'), launcherHeightInput = document.getElementById('launcherHeightInput'), minecraftRamInput = document.getElementById('minecraftRamInput');
         const resolutionPresetButtons = Array.from(document.querySelectorAll('.resolution-preset'));
@@ -975,12 +980,42 @@
                 cfInfo.innerText = 'Impossible de vérifier la clé API CurseForge.';
                 return false;
             }
+            if (keyStatus.fromOwner) {
+                cfInfo.innerText = `Clé propriétaire globale active (${keyStatus.maskedKey || 'ok'}). Tous les joueurs utilisent cette clé.`;
+                cfApiKeyInput.value = '';
+                cfApiKeyInput.disabled = true;
+                cfSaveKeyBtn.disabled = true;
+                cfClearKeyBtn.disabled = true;
+                return true;
+            }
+
+            cfApiKeyInput.disabled = false;
+            cfSaveKeyBtn.disabled = false;
+            cfClearKeyBtn.disabled = false;
             if (!keyStatus.configured) {
-                cfInfo.innerText = 'Clé API absente. Colle ta clé dans: ' + keyStatus.keyFilePath;
+                cfInfo.innerText = 'Clé API absente. Colle ta clé ci-dessus puis clique Enregistrer clé.';
+                cfApiKeyInput.value = '';
                 return false;
             }
-            cfInfo.innerText = 'Clé API détectée. Recherche active.';
+            cfInfo.innerText = `Clé API détectée (${keyStatus.maskedKey || 'ok'}). Recherche active.`;
+            cfApiKeyInput.value = '';
             return true;
+        };
+
+        const saveCurseForgeKeyFromInput = async (clear = false) => {
+            const key = clear ? '' : (cfApiKeyInput.value || '').trim();
+            cfSaveKeyBtn.disabled = true;
+            cfClearKeyBtn.disabled = true;
+            const result = await window.launcherAPI.setCurseForgeKey({ key });
+            cfSaveKeyBtn.disabled = false;
+            cfClearKeyBtn.disabled = false;
+            if (!result || !result.success) {
+                cfInfo.innerText = 'Impossible d\'enregistrer la clé API : ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return false;
+            }
+            cfInfo.innerText = result.message || 'Clé API mise à jour.';
+            if (!clear) cfApiKeyInput.value = '';
+            return await refreshCurseForgeKeyStatus();
         };
 
         const updateCurseForgePager = () => {
@@ -1271,6 +1306,18 @@
             await refreshModsList();
         });
         cfSearchBtn.addEventListener('click', () => runCurseForgeSearch(false));
+        cfSaveKeyBtn.addEventListener('click', async () => {
+            await saveCurseForgeKeyFromInput(false);
+        });
+        cfClearKeyBtn.addEventListener('click', async () => {
+            await saveCurseForgeKeyFromInput(true);
+        });
+        cfApiKeyInput.addEventListener('keydown', async (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                await saveCurseForgeKeyFromInput(false);
+            }
+        });
         cfPageSizeSelect.addEventListener('change', () => runCurseForgeSearch(false));
         cfSortSelect.addEventListener('change', () => runCurseForgeSearch(false));
         cfLoaderSelect.addEventListener('change', () => runCurseForgeSearch(false));
