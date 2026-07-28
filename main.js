@@ -1533,13 +1533,13 @@ ipcMain.handle('curseforge-search', async (event, payload = {}) => {
         const searchParams = {
             gameId: 432,
             classId,
-            gameVersion,
             searchFilter: query,
             sortField,
             sortOrder: 'desc',
             pageSize,
             index
         };
+        if (gameVersion && gameVersion.trim() && gameVersion.trim() !== '*') searchParams.gameVersion = gameVersion.trim();
         if (Number.isFinite(modLoaderType) && modLoaderType > 0) searchParams.modLoaderType = modLoaderType;
         if (Number.isFinite(categoryId) && categoryId > 0) searchParams.categoryId = categoryId;
 

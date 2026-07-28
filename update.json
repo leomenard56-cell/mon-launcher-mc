@@ -1,5 +1,5 @@
 {
-  "version": "1.0.26",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.26/KuroVerse-Setup-1.0.26.exe",
-  "notes": "CurseForge: clé propriétaire globale + gestion clé API intégrée dans l'UI"
+  "version": "1.0.27",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.27/KuroVerse-Setup-1.0.27.exe",
+  "notes": "CurseForge: verrouillage de l'UI quand la clé propriétaire globale est active"
 }

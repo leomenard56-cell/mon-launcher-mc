@@ -373,8 +373,8 @@
                         <label class="cf-filter-item"><input type="radio" name="cfTypeRadio" value="modpacks"> Modpacks</label>
                     </div>
                     <div class="cf-filter-group">
-                        <div class="small-note" style="margin-bottom:8px;">Version Minecraft</div>
-                        <input id="cfVersionInput" class="cf-control" type="text" value="1.21.1">
+                        <div class="small-note" style="margin-bottom:8px;">Version Minecraft <span style="color:#666">(vide = toutes)</span></div>
+                        <input id="cfVersionInput" class="cf-control" type="text" placeholder="ex: 1.21.1 (vide = toutes)" value="">
                     </div>
                     <div class="cf-filter-group">
                         <div class="small-note" style="margin-bottom:8px;">Loader</div>
@@ -974,24 +974,31 @@
             }).join('');
         };
 
+        const setCurseForgeKeyUiLocked = (locked, message = '') => {
+            cfApiKeyInput.disabled = locked;
+            cfSaveKeyBtn.disabled = locked;
+            cfClearKeyBtn.disabled = locked;
+            cfApiKeyInput.placeholder = locked ? 'Clé propriétaire globale active' : 'Colle ta clé API CurseForge ici';
+            cfApiKeyInput.title = locked ? 'La clé globale propriétaire est déjà utilisée. Le champ est verrouillé.' : '';
+            if (message) {
+                cfInfo.innerText = message;
+            }
+        };
+
         const refreshCurseForgeKeyStatus = async () => {
             const keyStatus = await window.launcherAPI.getCurseForgeKeyStatus();
             if (!keyStatus || !keyStatus.success) {
+                setCurseForgeKeyUiLocked(false);
                 cfInfo.innerText = 'Impossible de vérifier la clé API CurseForge.';
                 return false;
             }
             if (keyStatus.fromOwner) {
-                cfInfo.innerText = `Clé propriétaire globale active (${keyStatus.maskedKey || 'ok'}). Tous les joueurs utilisent cette clé.`;
                 cfApiKeyInput.value = '';
-                cfApiKeyInput.disabled = true;
-                cfSaveKeyBtn.disabled = true;
-                cfClearKeyBtn.disabled = true;
+                setCurseForgeKeyUiLocked(true, `Clé propriétaire globale active (${keyStatus.maskedKey || 'ok'}). Tous les joueurs utilisent cette clé.`);
                 return true;
             }
 
-            cfApiKeyInput.disabled = false;
-            cfSaveKeyBtn.disabled = false;
-            cfClearKeyBtn.disabled = false;
+            setCurseForgeKeyUiLocked(false);
             if (!keyStatus.configured) {
                 cfInfo.innerText = 'Clé API absente. Colle ta clé ci-dessus puis clique Enregistrer clé.';
                 cfApiKeyInput.value = '';
@@ -1003,6 +1010,12 @@
         };
 
         const saveCurseForgeKeyFromInput = async (clear = false) => {
+            const keyStatus = await window.launcherAPI.getCurseForgeKeyStatus();
+            if (keyStatus && keyStatus.success && keyStatus.fromOwner) {
+                setCurseForgeKeyUiLocked(true, `Clé propriétaire globale active (${keyStatus.maskedKey || 'ok'}). Les modifications utilisateur sont désactivées.`);
+                return false;
+            }
+
             const key = clear ? '' : (cfApiKeyInput.value || '').trim();
             cfSaveKeyBtn.disabled = true;
             cfClearKeyBtn.disabled = true;
@@ -1057,6 +1070,8 @@
             renderCurseForgeResults(result.items, result.type, result.gameVersion);
             updateCurseForgePager();
         };
+
+        refreshCurseForgeKeyStatus();
 
         const renderCustomPacks = (entries) => {
             if (!entries || !entries.length) {
