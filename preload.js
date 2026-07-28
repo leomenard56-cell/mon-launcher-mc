@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     importTLauncherProfile: () => ipcRenderer.invoke('import-tlauncher-profile'),
     exportModPack: () => ipcRenderer.invoke('export-modpack'),
     searchCurseForge: (payload) => ipcRenderer.invoke('curseforge-search', payload),
+    getCurseForgeProjectFiles: (payload) => ipcRenderer.invoke('curseforge-project-files', payload),
     installCurseForgeProject: (payload) => ipcRenderer.invoke('curseforge-install-latest', payload),
     getCurseForgeKeyStatus: () => ipcRenderer.invoke('curseforge-key-status'),
     setCurseForgeKey: (payload) => ipcRenderer.invoke('set-curseforge-key', payload),

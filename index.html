@@ -218,6 +218,59 @@
         .cf-logo { width: 84px; height: 84px; border-radius: 8px; background: #0f0f18 center/cover no-repeat; border: 1px solid #2e2e3f; }
         .cf-meta { font-size: 12px; color: #9b9ba6; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
         .cf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .cf-files-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(4, 9, 18, 0.74);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            padding: 18px;
+        }
+        .cf-files-card {
+            width: min(960px, 100%);
+            max-height: 85vh;
+            display: grid;
+            grid-template-rows: auto auto 1fr;
+            gap: 10px;
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid #324867;
+            background: #0f1623;
+            box-shadow: 0 22px 54px rgba(0, 0, 0, 0.45);
+        }
+        .cf-files-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .cf-files-list {
+            overflow: auto;
+            border: 1px solid #2b3950;
+            border-radius: 10px;
+            background: #101723;
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+        }
+        .cf-file-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            align-items: center;
+            border: 1px solid #2b3950;
+            border-radius: 8px;
+            padding: 10px;
+            background: #111b2a;
+        }
+        .cf-file-item p {
+            font-size: 12px;
+            color: #a8b6cc;
+            margin: 4px 0 0;
+        }
         @media (max-width: 1200px) {
             .cf-browser { grid-template-columns: 1fr; }
             .cf-toolbar { grid-template-columns: 1fr 1fr; }
@@ -312,6 +365,8 @@
             </div>
             <div class="panel-card">
                 <div class="mods-list">
+                    <div class="mod-item"><h4>v1.0.28</h4><p>CurseForge: ajout du choix de version comme dans l'onglet Files (popup des builds), avec installation directe de la version sélectionnée.</p></div>
+                    <div class="mod-item"><h4>v1.0.27</h4><p>CurseForge: verrouillage de l'UI clé API quand la clé propriétaire globale est active.</p></div>
                     <div class="mod-item"><h4>v1.0.24</h4><p>Fix skin Ely.by en jeu: injection authlib automatique au lancement.</p></div>
                     <div class="mod-item"><h4>v1.0.23</h4><p>Connexion Ely.by ajoutée + export Skin Studio compatible profil Ely.by.</p></div>
                     <div class="mod-item"><h4>v1.0.22</h4><p>Skin Studio: import Ely.by + application persistante du skin dans le launcher.</p></div>
@@ -431,6 +486,17 @@
                         <div class="cf-results" id="cfResults"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div id="cfFilesOverlay" class="cf-files-overlay">
+            <div class="cf-files-card">
+                <div class="cf-files-head">
+                    <h2 id="cfFilesTitle" style="font-size:20px; margin:0;">Choisir une version</h2>
+                    <button id="cfFilesCloseBtn" class="btn-connexion" style="margin:0; width:auto; background:#44506a; padding:10px 14px;">Fermer</button>
+                </div>
+                <p id="cfFilesInfo" class="small-note" style="min-height:20px; margin:0;">Chargement des fichiers...</p>
+                <div id="cfFilesList" class="cf-files-list"></div>
             </div>
         </div>
 
@@ -606,6 +672,7 @@
         const skinBrightness = document.getElementById('skinBrightness'), skinContrast = document.getElementById('skinContrast'), skinSaturate = document.getElementById('skinSaturate'), skinHue = document.getElementById('skinHue'), skinBrightnessVal = document.getElementById('skinBrightnessVal'), skinContrastVal = document.getElementById('skinContrastVal'), skinSaturateVal = document.getElementById('skinSaturateVal'), skinHueVal = document.getElementById('skinHueVal');
         const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
         const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfApiKeyInput = document.getElementById('cfApiKeyInput'), cfSaveKeyBtn = document.getElementById('cfSaveKeyBtn'), cfClearKeyBtn = document.getElementById('cfClearKeyBtn'), cfResults = document.getElementById('cfResults');
+        const cfFilesOverlay = document.getElementById('cfFilesOverlay'), cfFilesTitle = document.getElementById('cfFilesTitle'), cfFilesInfo = document.getElementById('cfFilesInfo'), cfFilesList = document.getElementById('cfFilesList'), cfFilesCloseBtn = document.getElementById('cfFilesCloseBtn');
         const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
         const settingsBtn = document.getElementById('settingsBtn'), settingsOverlay = document.getElementById('settingsOverlay'), closeSettingsBtn = document.getElementById('closeSettingsBtn'), saveSettingsBtn = document.getElementById('saveSettingsBtn'), launcherWidthInput = document.getElementById('launcherWidthInput'), launcherHeightInput = document.getElementById('launcherHeightInput'), minecraftRamInput = document.getElementById('minecraftRamInput');
         const resolutionPresetButtons = Array.from(document.querySelectorAll('.resolution-preset'));
@@ -951,7 +1018,6 @@
             }
             cfResults.innerHTML = items.map((item) => {
                 const safeSummary = (item.summary || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                const actionLabel = type === 'modpacks' ? 'Installer ce modpack' : 'Installer ce mod';
                 const logoUrl = item.logoUrl || '';
                 return `
                     <div class="cf-card">
@@ -965,10 +1031,74 @@
                             <span>${gameVersion}</span>
                         </div>
                         <div class="cf-actions">
-                            <button class="btn-connexion cf-install-btn" data-project-id="${item.id}" data-type="${type}" data-version="${gameVersion}" style="margin:0; background:#ff5500;">${actionLabel}</button>
+                            <button class="btn-connexion cf-install-btn" data-project-id="${item.id}" data-type="${type}" data-version="${gameVersion}" style="margin:0; background:#ff5500;">Installer latest</button>
+                            <button class="btn-connexion cf-choose-version-btn" data-project-id="${item.id}" data-type="${type}" data-version="${gameVersion}" data-project-name="${encodeURIComponent(item.name || '')}" style="margin:0; background:#1d4ed8;">Choisir version</button>
                             <button class="btn-connexion cf-open-btn" data-url="${item.websiteUrl || ''}" style="margin:0; background:#3b82f6;">Voir la page</button>
                         </div>
                         </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const getReleaseTypeLabel = (releaseType) => {
+            if (Number(releaseType) === 2) return 'Beta';
+            if (Number(releaseType) === 3) return 'Alpha';
+            return 'Release';
+        };
+
+        const formatCurseForgeFileSize = (bytes) => {
+            const value = Number(bytes || 0);
+            if (!Number.isFinite(value) || value <= 0) return 'Taille inconnue';
+            return `${(value / 1048576).toFixed(2)} Mo`;
+        };
+
+        const closeCurseForgeFilesOverlay = () => {
+            cfFilesOverlay.style.display = 'none';
+            cfFilesList.innerHTML = '';
+        };
+
+        const openCurseForgeFilesOverlay = async (projectId, type, gameVersion, projectName) => {
+            const loaderType = Number(cfLoaderSelect.value || 0);
+            const safeName = projectName || `Projet ${projectId}`;
+            cfFilesOverlay.style.display = 'flex';
+            cfFilesTitle.innerText = `Versions disponibles - ${safeName}`;
+            cfFilesInfo.innerText = 'Chargement des fichiers CurseForge...';
+            cfFilesList.innerHTML = '<div class="mod-item"><h4>Chargement...</h4><p>Récupération des versions en cours.</p></div>';
+
+            const result = await window.launcherAPI.getCurseForgeProjectFiles({
+                projectId,
+                gameVersion,
+                modLoaderType: loaderType,
+                pageSize: 60,
+                index: 0
+            });
+
+            if (!result || !result.success) {
+                cfFilesInfo.innerText = 'Impossible de charger les versions: ' + (result && result.error ? result.error : 'erreur inconnue');
+                cfFilesList.innerHTML = '<div class="mod-item"><h4>Erreur</h4><p>Aucune version récupérée.</p></div>';
+                return;
+            }
+
+            const files = Array.isArray(result.files) ? result.files : [];
+            if (!files.length) {
+                cfFilesInfo.innerText = 'Aucun fichier compatible trouvé avec ces filtres.';
+                cfFilesList.innerHTML = '<div class="mod-item"><h4>Aucune version</h4><p>Essaie une autre version Minecraft ou loader.</p></div>';
+                return;
+            }
+
+            cfFilesInfo.innerText = `${files.length} version(s) disponibles pour ${safeName}.`;
+            cfFilesList.innerHTML = files.map((file) => {
+                const versions = Array.isArray(file.gameVersions) ? file.gameVersions.join(', ') : '';
+                const dateText = file.fileDate ? new Date(file.fileDate).toLocaleDateString('fr-FR') : 'Date inconnue';
+                return `
+                    <div class="cf-file-item">
+                        <div>
+                            <h4 style="font-size:14px; margin:0 0 4px;">${file.displayName || ('File ' + file.id)}</h4>
+                            <p>${getReleaseTypeLabel(file.releaseType)} | ${formatCurseForgeFileSize(file.fileLength)} | ${Number(file.downloadCount || 0).toLocaleString('fr-FR')} téléchargements | ${dateText}</p>
+                            <p>${versions || 'Versions Minecraft inconnues'}</p>
+                        </div>
+                        <button class="btn-connexion cf-install-file-btn" data-project-id="${projectId}" data-file-id="${file.id}" data-type="${type}" data-version="${gameVersion}" style="margin:0; width:auto; background:#ff5500; padding:10px 14px;">Installer</button>
                     </div>
                 `;
             }).join('');
@@ -1385,6 +1515,17 @@
                 }
                 return;
             }
+
+            const chooseVersionBtn = event.target.closest('.cf-choose-version-btn');
+            if (chooseVersionBtn) {
+                const projectId = Number(chooseVersionBtn.getAttribute('data-project-id'));
+                const type = chooseVersionBtn.getAttribute('data-type') || 'mods';
+                const gameVersion = chooseVersionBtn.getAttribute('data-version') || (cfVersionInput.value.trim() || '1.21.1');
+                const projectName = decodeURIComponent(chooseVersionBtn.getAttribute('data-project-name') || '');
+                await openCurseForgeFilesOverlay(projectId, type, gameVersion, projectName);
+                return;
+            }
+
             const installBtn = event.target.closest('.cf-install-btn');
             if (!installBtn) return;
 
@@ -1397,13 +1538,45 @@
 
             const result = await window.launcherAPI.installCurseForgeProject({ projectId, type, gameVersion });
             installBtn.disabled = false;
-            installBtn.innerText = type === 'modpacks' ? 'Installer ce modpack' : 'Installer ce mod';
+            installBtn.innerText = 'Installer latest';
             if (!result || !result.success) {
                 cfInfo.innerText = 'Installation échouée: ' + (result && result.error ? result.error : 'échec inconnu');
                 return;
             }
 
             cfInfo.innerText = result.message || 'Installation terminée.';
+            await refreshModsList();
+        });
+
+        cfFilesCloseBtn.addEventListener('click', closeCurseForgeFilesOverlay);
+        cfFilesOverlay.addEventListener('click', (event) => {
+            if (event.target === cfFilesOverlay) closeCurseForgeFilesOverlay();
+        });
+
+        cfFilesList.addEventListener('click', async (event) => {
+            const installBtn = event.target.closest('.cf-install-file-btn');
+            if (!installBtn) return;
+
+            const projectId = Number(installBtn.getAttribute('data-project-id'));
+            const fileId = Number(installBtn.getAttribute('data-file-id'));
+            const type = installBtn.getAttribute('data-type') || 'mods';
+            const gameVersion = installBtn.getAttribute('data-version') || (cfVersionInput.value.trim() || '1.21.1');
+
+            installBtn.disabled = true;
+            installBtn.innerText = 'Installation...';
+            cfInfo.innerText = `Installation CurseForge en cours (${projectId}/${fileId})...`;
+
+            const result = await window.launcherAPI.installCurseForgeProject({ projectId, fileId, type, gameVersion });
+            installBtn.disabled = false;
+            installBtn.innerText = 'Installer';
+
+            if (!result || !result.success) {
+                cfInfo.innerText = 'Installation échouée: ' + (result && result.error ? result.error : 'échec inconnu');
+                return;
+            }
+
+            cfInfo.innerText = result.message || 'Installation terminée.';
+            closeCurseForgeFilesOverlay();
             await refreshModsList();
         });
 

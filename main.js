@@ -1583,6 +1583,61 @@ ipcMain.handle('curseforge-search', async (event, payload = {}) => {
     }
 });
 
+ipcMain.handle('curseforge-project-files', async (event, payload = {}) => {
+    try {
+        const apiKeyInfo = getCurseForgeApiKey();
+        const apiKey = apiKeyInfo && apiKeyInfo.key ? apiKeyInfo.key : null;
+        if (!apiKey) {
+            return {
+                success: false,
+                error: 'Clé API CurseForge manquante. Ajoute-la dans le champ CurseForge du launcher.'
+            };
+        }
+
+        const projectId = Number(payload && payload.projectId ? payload.projectId : 0);
+        const gameVersion = payload && payload.gameVersion ? String(payload.gameVersion).trim() : '';
+        const modLoaderType = Number(payload && payload.modLoaderType ? payload.modLoaderType : 0);
+        const index = Math.max(0, Number(payload && payload.index ? payload.index : 0));
+        const pageSize = Math.min(100, Math.max(10, Number(payload && payload.pageSize ? payload.pageSize : 50)));
+
+        if (!Number.isFinite(projectId) || projectId <= 0) {
+            return { success: false, error: 'projectId invalide.' };
+        }
+
+        const params = {
+            index,
+            pageSize
+        };
+        if (gameVersion && gameVersion !== '*') params.gameVersion = gameVersion;
+        if (Number.isFinite(modLoaderType) && modLoaderType > 0) params.modLoaderType = modLoaderType;
+
+        const rows = await fetchCurseForgeJson(`/mods/${projectId}/files`, apiKey, params);
+        const files = Array.isArray(rows) ? rows : [];
+        const mapped = files.map(file => ({
+            id: file.id,
+            displayName: file.displayName || file.fileName || `File ${file.id}`,
+            fileName: file.fileName || '',
+            fileDate: file.fileDate || '',
+            downloadCount: Number(file.downloadCount || 0),
+            releaseType: Number(file.releaseType || 1),
+            gameVersions: Array.isArray(file.gameVersions) ? file.gameVersions.slice(0, 8) : [],
+            fileLength: Number(file.fileLength || 0),
+            fileStatus: Number(file.fileStatus || 0)
+        }));
+
+        return {
+            success: true,
+            projectId,
+            files: mapped,
+            count: mapped.length,
+            index,
+            pageSize
+        };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+});
+
 ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
     try {
         ensureLauncherDataDirectories();
@@ -1598,19 +1653,26 @@ ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
         const projectId = Number(payload && payload.projectId ? payload.projectId : 0);
         const type = payload && payload.type ? String(payload.type).trim() : 'mods';
         const gameVersion = payload && payload.gameVersion ? String(payload.gameVersion).trim() : '1.21.1';
+        const requestedFileId = Number(payload && payload.fileId ? payload.fileId : 0);
         if (!Number.isFinite(projectId) || projectId <= 0) {
             return { success: false, error: 'projectId invalide.' };
         }
 
-        const latest = await findLatestCurseForgeFile(projectId, gameVersion, apiKey);
-        if (!latest || !latest.id) {
-            return { success: false, error: 'Aucun fichier compatible trouvé pour ce projet.' };
+        let fileId = 0;
+        if (Number.isFinite(requestedFileId) && requestedFileId > 0) {
+            fileId = requestedFileId;
+        } else {
+            const latest = await findLatestCurseForgeFile(projectId, gameVersion, apiKey);
+            if (!latest || !latest.id) {
+                return { success: false, error: 'Aucun fichier compatible trouvé pour ce projet.' };
+            }
+            fileId = Number(latest.id);
         }
 
         if (type === 'modpacks') {
-            const url = await fetchCurseForgeJson(`/mods/${projectId}/files/${latest.id}/download-url`, apiKey);
+            const url = await fetchCurseForgeJson(`/mods/${projectId}/files/${fileId}/download-url`, apiKey);
             if (!url) return { success: false, error: 'URL de téléchargement introuvable pour ce modpack.' };
-            const tempZipPath = path.join(launcherDataPath, `curseforge-pack-${projectId}-${latest.id}.zip`);
+            const tempZipPath = path.join(launcherDataPath, `curseforge-pack-${projectId}-${fileId}.zip`);
             const response = await axios({ url, method: 'GET', responseType: 'stream', timeout: 60000 });
             await new Promise((resolve, reject) => {
                 const writer = fs.createWriteStream(tempZipPath);
@@ -1624,19 +1686,19 @@ ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
                 success: true,
                 mode: 'modpack',
                 projectId,
-                fileId: latest.id,
+                fileId,
                 message: `Modpack importé: ${imported.message}`,
                 import: imported
             };
         }
 
-        const downloaded = await downloadCurseForgeModFile(projectId, latest.id, apiKey);
+        const downloaded = await downloadCurseForgeModFile(projectId, fileId, apiKey);
         mainWindow.webContents.send('mods-installed', { installed: listInstalledModFiles(), folder: modsFolderPath });
         return {
             success: true,
             mode: 'mod',
             projectId,
-            fileId: latest.id,
+            fileId,
             file: downloaded,
             message: `Mod installé: ${downloaded.name}`
         };
