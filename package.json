@@ -1,6 +1,6 @@
 {
   "name": "mon-launcher-mc",
-  "version": "1.0.29",
+  "version": "1.0.30",
   "description": "Launcher Minecraft personnalisé avec support moddé et connexion Microsoft",
   "main": "main.js",
   "scripts": {
@@ -12,6 +12,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "archiver": "^8.0.0",
     "axios": "^1.18.0",
     "minecraft-launcher-core": "^3.18.2",
     "msmc": "^5.0.5",

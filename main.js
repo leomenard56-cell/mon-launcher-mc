@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 const axios = require('axios');
 const unzipper = require('unzipper');
+const archiver = require('archiver');
 const { Client, Authenticator } = require('minecraft-launcher-core');
 const { Auth } = require('msmc'); 
 
@@ -344,19 +345,8 @@ function readManifestIfPresent(rootDir) {
 
 async function createPackZipFromLauncherData(destinationPath, packName) {
     ensureLauncherDataDirectories();
-    const stagingDir = fs.mkdtempSync(path.join(launcherDataPath, 'export-'));
-    const overridesDir = path.join(stagingDir, 'overrides');
-    ensureDirectory(overridesDir);
-
     const exportFolders = ['mods', 'config', 'defaultconfigs', 'kubejs', 'resourcepacks', 'shaderpacks', 'saves'];
     const exportedFolders = [];
-    for (const folder of exportFolders) {
-        const sourcePath = path.join(launcherDataPath, folder);
-        if (fs.existsSync(sourcePath)) {
-            copyDirectoryContents(sourcePath, path.join(overridesDir, folder));
-            exportedFolders.push(folder);
-        }
-    }
 
     const manifest = {
         minecraft: {
@@ -371,26 +361,29 @@ async function createPackZipFromLauncherData(destinationPath, packName) {
         overrides: 'overrides',
         exportedFolders
     };
-    fs.writeFileSync(path.join(stagingDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
 
-    const safeStaging = stagingDir.replace(/'/g, "''");
-    const safeDestination = destinationPath.replace(/'/g, "''");
-    const psScript = [
-        "$ErrorActionPreference = 'Stop'",
-        `if (Test-Path -LiteralPath '${safeDestination}') { Remove-Item -LiteralPath '${safeDestination}' -Force }`,
-        `Compress-Archive -Path '${safeStaging}\\*' -DestinationPath '${safeDestination}' -Force`
-    ].join('; ');
+    ensureDirectory(path.dirname(destinationPath));
 
-    const result = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psScript], {
-        encoding: 'utf8',
-        windowsHide: true
+    await new Promise((resolve, reject) => {
+        const output = fs.createWriteStream(destinationPath);
+        const archive = archiver('zip', { zlib: { level: 9 } });
+
+        output.on('close', resolve);
+        output.on('error', reject);
+        archive.on('error', reject);
+
+        archive.pipe(output);
+
+        for (const folder of exportFolders) {
+            const sourcePath = path.join(launcherDataPath, folder);
+            if (!fs.existsSync(sourcePath)) continue;
+            archive.directory(sourcePath, `overrides/${folder}`);
+            exportedFolders.push(folder);
+        }
+
+        archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+        archive.finalize();
     });
-
-    fs.rmSync(stagingDir, { recursive: true, force: true });
-
-    if (result.status !== 0) {
-        throw new Error(result.stderr || result.stdout || 'Compression du pack impossible.');
-    }
 
     return { exportedFolders };
 }
