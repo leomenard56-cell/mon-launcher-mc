@@ -365,6 +365,7 @@
             </div>
             <div class="panel-card">
                 <div class="mods-list">
+                    <div class="mod-item"><h4>v1.0.29</h4><p>Mods Pack Personnaliser: ajout du lien GitHub du dossier mods + bouton 1 clic pour télécharger tous les mods depuis le dépôt.</p></div>
                     <div class="mod-item"><h4>v1.0.28</h4><p>CurseForge: ajout du choix de version comme dans l'onglet Files (popup des builds), avec installation directe de la version sélectionnée.</p></div>
                     <div class="mod-item"><h4>v1.0.27</h4><p>CurseForge: verrouillage de l'UI clé API quand la clé propriétaire globale est active.</p></div>
                     <div class="mod-item"><h4>v1.0.24</h4><p>Fix skin Ely.by en jeu: injection authlib automatique au lancement.</p></div>
@@ -510,6 +511,15 @@
                     <input id="customPackManifestInput" type="text" placeholder="URL manifest updates (optionnel)" style="width:100%; padding:10px; border-radius:8px; border:1px solid #2e2e3f; background:#121220; color:#fff; margin-bottom:12px;">
                     <button id="createCustomPackBtn" class="btn-connexion" style="background:#16a34a;">Créer le pack</button>
                     <p class="small-note">Manifest en ligne attendu: {"version":"1.0.1","downloadUrl":"https://...zip","notes":"..."}</p>
+                    <hr style="border-color:#2b3950; margin:12px 0;">
+                    <h2 style="font-size:18px; margin-bottom:10px;">Mods GitHub (1 clic)</h2>
+                    <input id="githubModsRepoInput" type="text" value="leomenard56-cell/mon-launcher-mc" placeholder="owner/repo ou URL GitHub" style="width:100%; padding:10px; border-radius:8px; border:1px solid #2e2e3f; background:#121220; color:#fff; margin-bottom:10px;">
+                    <input id="githubModsBranchInput" type="text" value="main" placeholder="Branche (ex: main)" style="width:100%; padding:10px; border-radius:8px; border:1px solid #2e2e3f; background:#121220; color:#fff; margin-bottom:10px;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                        <button id="syncGithubModsBtn" class="btn-connexion" style="margin:0; background:#2563eb;">Télécharger tous les mods GitHub</button>
+                        <button id="openGithubModsBtn" class="btn-connexion" style="margin:0; background:#4b5563;">Ouvrir dossier mods GitHub</button>
+                    </div>
+                    <p class="small-note">Partage ce dépôt: les joueurs cliquent sur le bouton de téléchargement pour récupérer les mods du dossier <i>mods</i>.</p>
                 </div>
                 <div>
                     <div class="panel-card">
@@ -670,7 +680,7 @@
         const importTLauncherBtn = document.getElementById('importTLauncherBtn'), tlauncherInfo = document.getElementById('tlauncherInfo'), tlauncherImportedList = document.getElementById('tlauncherImportedList');
         const skinFileInput = document.getElementById('skinFileInput'), pickSkinFileBtn = document.getElementById('pickSkinFileBtn'), resetSkinBtn = document.getElementById('resetSkinBtn'), skinUrlInput = document.getElementById('skinUrlInput'), loadSkinUrlBtn = document.getElementById('loadSkinUrlBtn'), elyByNicknameInput = document.getElementById('elyByNicknameInput'), loadElyBySkinBtn = document.getElementById('loadElyBySkinBtn'), skinStudioInfo = document.getElementById('skinStudioInfo'), skinPreviewCanvas = document.getElementById('skinPreviewCanvas'), skin3dCanvas = document.getElementById('skin3dCanvas'), skin3dInfo = document.getElementById('skin3dInfo'), toggleSkin3DRotateBtn = document.getElementById('toggleSkin3DRotateBtn'), resetSkin3DCameraBtn = document.getElementById('resetSkin3DCameraBtn'), mirrorSkinBtn = document.getElementById('mirrorSkinBtn'), applySkinBtn = document.getElementById('applySkinBtn'), exportElySkinBtn = document.getElementById('exportElySkinBtn'), openElyProfileBtn = document.getElementById('openElyProfileBtn'), downloadSkinBtn = document.getElementById('downloadSkinBtn');
         const skinBrightness = document.getElementById('skinBrightness'), skinContrast = document.getElementById('skinContrast'), skinSaturate = document.getElementById('skinSaturate'), skinHue = document.getElementById('skinHue'), skinBrightnessVal = document.getElementById('skinBrightnessVal'), skinContrastVal = document.getElementById('skinContrastVal'), skinSaturateVal = document.getElementById('skinSaturateVal'), skinHueVal = document.getElementById('skinHueVal');
-        const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo');
+        const customPackNameInput = document.getElementById('customPackNameInput'), customPackVersionInput = document.getElementById('customPackVersionInput'), customPackManifestInput = document.getElementById('customPackManifestInput'), createCustomPackBtn = document.getElementById('createCustomPackBtn'), refreshCustomPacksBtn = document.getElementById('refreshCustomPacksBtn'), checkCustomUpdatesBtn = document.getElementById('checkCustomUpdatesBtn'), customPacksList = document.getElementById('customPacksList'), customPacksInfo = document.getElementById('customPacksInfo'), githubModsRepoInput = document.getElementById('githubModsRepoInput'), githubModsBranchInput = document.getElementById('githubModsBranchInput'), syncGithubModsBtn = document.getElementById('syncGithubModsBtn'), openGithubModsBtn = document.getElementById('openGithubModsBtn');
         const cfSearchInput = document.getElementById('cfSearchInput'), cfVersionInput = document.getElementById('cfVersionInput'), cfLoaderSelect = document.getElementById('cfLoaderSelect'), cfCategorySelect = document.getElementById('cfCategorySelect'), cfSortSelect = document.getElementById('cfSortSelect'), cfPageSizeSelect = document.getElementById('cfPageSizeSelect'), cfSearchBtn = document.getElementById('cfSearchBtn'), cfCreatePublishBtn = document.getElementById('cfCreatePublishBtn'), cfPrevBtn = document.getElementById('cfPrevBtn'), cfNextBtn = document.getElementById('cfNextBtn'), cfPageLabel = document.getElementById('cfPageLabel'), cfTotalCount = document.getElementById('cfTotalCount'), cfInfo = document.getElementById('cfInfo'), cfApiKeyInput = document.getElementById('cfApiKeyInput'), cfSaveKeyBtn = document.getElementById('cfSaveKeyBtn'), cfClearKeyBtn = document.getElementById('cfClearKeyBtn'), cfResults = document.getElementById('cfResults');
         const cfFilesOverlay = document.getElementById('cfFilesOverlay'), cfFilesTitle = document.getElementById('cfFilesTitle'), cfFilesInfo = document.getElementById('cfFilesInfo'), cfFilesList = document.getElementById('cfFilesList'), cfFilesCloseBtn = document.getElementById('cfFilesCloseBtn');
         const checkUpdateBtn = document.getElementById('checkUpdateBtn'), downloadUpdateBtn = document.getElementById('downloadUpdateBtn'), updateInfo = document.getElementById('updateInfo');
@@ -1250,6 +1260,30 @@
             renderCustomPacks(result.entries);
         };
 
+        const buildGithubModsFolderUrl = () => {
+            const branch = (githubModsBranchInput.value || '').trim() || 'main';
+            const rawRepo = (githubModsRepoInput.value || '').trim();
+            if (!rawRepo) {
+                return `https://github.com/leomenard56-cell/mon-launcher-mc/tree/${encodeURIComponent(branch)}/mods`;
+            }
+            if (/^https?:\/\/github\.com\//i.test(rawRepo)) {
+                try {
+                    const urlObj = new URL(rawRepo);
+                    const parts = urlObj.pathname.split('/').filter(Boolean);
+                    if (parts.length >= 2) {
+                        return `https://github.com/${parts[0]}/${parts[1]}/tree/${encodeURIComponent(branch)}/mods`;
+                    }
+                } catch (_) {
+                    return rawRepo;
+                }
+                return rawRepo;
+            }
+            if (/^[^/\s]+\/[^/\s]+$/.test(rawRepo)) {
+                return `https://github.com/${rawRepo}/tree/${encodeURIComponent(branch)}/mods`;
+            }
+            return rawRepo;
+        };
+
         tabNewsBtn.addEventListener('click', () => setTab('news'));
         tabModsBtn.addEventListener('click', async () => {
             setTab('mods');
@@ -1596,6 +1630,35 @@
             }
             customPacksInfo.innerText = `Pack créé: ${result.filePath}`;
             await refreshCustomPacks();
+        });
+
+        openGithubModsBtn.addEventListener('click', () => {
+            const modsUrl = buildGithubModsFolderUrl();
+            if (window.launcherAPIOpen && window.launcherAPIOpen.openExternal) {
+                window.launcherAPIOpen.openExternal(modsUrl);
+            }
+            customPacksInfo.innerText = `Lien mods GitHub ouvert: ${modsUrl}`;
+        });
+
+        syncGithubModsBtn.addEventListener('click', async () => {
+            syncGithubModsBtn.disabled = true;
+            syncGithubModsBtn.innerText = 'Téléchargement...';
+            const result = await window.launcherAPI.syncGithubMods({
+                repo: (githubModsRepoInput.value || '').trim(),
+                branch: (githubModsBranchInput.value || '').trim(),
+                folder: 'mods'
+            });
+            syncGithubModsBtn.disabled = false;
+            syncGithubModsBtn.innerText = 'Télécharger tous les mods GitHub';
+
+            if (!result || !result.success) {
+                customPacksInfo.innerText = 'Sync mods GitHub échouée: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+
+            const failedCount = Array.isArray(result.failed) ? result.failed.length : 0;
+            customPacksInfo.innerText = `${result.downloadedCount}/${result.totalFiles} mods téléchargés depuis ${result.repo}/${result.folder}${failedCount ? ` (${failedCount} échec(s))` : ''}.`;
+            await refreshModsList();
         });
 
         refreshCustomPacksBtn.addEventListener('click', refreshCustomPacks);

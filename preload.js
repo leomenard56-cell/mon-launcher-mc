@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     setCurseForgeKey: (payload) => ipcRenderer.invoke('set-curseforge-key', payload),
     listCustomModpacks: () => ipcRenderer.invoke('list-custom-modpacks'),
     createCustomModpack: (payload) => ipcRenderer.invoke('create-custom-modpack', payload),
+    syncGithubMods: (payload) => ipcRenderer.invoke('sync-github-mods', payload),
     checkCustomModpacksUpdates: () => ipcRenderer.invoke('check-custom-modpacks-updates'),
     installCustomModpackUpdate: (payload) => ipcRenderer.invoke('install-custom-modpack-update', payload),
     getLauncherSettings: () => ipcRenderer.invoke('get-launcher-settings'),

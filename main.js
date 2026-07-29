@@ -28,6 +28,9 @@ const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
 const ownerCurseForgeKeyPath = path.join(__dirname, 'owner_curseforge_key.txt');
 const ELY_AUTH_BASE = 'https://authserver.ely.by';
 const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
+const DEFAULT_GITHUB_MODS_REPO = 'leomenard56-cell/mon-launcher-mc';
+const DEFAULT_GITHUB_MODS_BRANCH = 'main';
+const DEFAULT_GITHUB_MODS_PATH = 'mods';
 const DEFAULT_LAUNCHER_SETTINGS = {
     windowWidth: 1000,
     windowHeight: 600,
@@ -810,6 +813,137 @@ function normalizeManifestUrl(inputUrl) {
     }
 }
 
+function normalizeGithubRepoPayload(payload = {}) {
+    let repo = DEFAULT_GITHUB_MODS_REPO;
+    let branch = DEFAULT_GITHUB_MODS_BRANCH;
+    let folder = DEFAULT_GITHUB_MODS_PATH;
+
+    const repoInput = String(payload && payload.repo ? payload.repo : '').trim();
+    if (repoInput) {
+        if (/^https?:\/\/github\.com\//i.test(repoInput)) {
+            const urlObj = new URL(repoInput);
+            const parts = urlObj.pathname.split('/').filter(Boolean);
+            if (parts.length >= 2) {
+                repo = `${parts[0]}/${parts[1]}`;
+                if (parts[2] === 'tree' && parts.length >= 5) {
+                    branch = parts[3];
+                    folder = parts.slice(4).join('/');
+                }
+            }
+        } else if (/^[^/\s]+\/[^/\s]+$/.test(repoInput)) {
+            repo = repoInput;
+        }
+    }
+
+    const branchInput = String(payload && payload.branch ? payload.branch : '').trim();
+    if (branchInput) branch = branchInput;
+
+    const folderInput = String(payload && payload.folder ? payload.folder : '').trim();
+    if (folderInput) folder = folderInput;
+
+    folder = String(folder || DEFAULT_GITHUB_MODS_PATH).replace(/^\/+|\/+$/g, '') || DEFAULT_GITHUB_MODS_PATH;
+
+    if (!/^[^/\s]+\/[^/\s]+$/.test(repo)) {
+        throw new Error('Repository GitHub invalide. Utilise owner/repo ou une URL GitHub valide.');
+    }
+    if (!branch || /\s/.test(branch)) {
+        throw new Error('Branche GitHub invalide.');
+    }
+    if (!folder || /\.\./.test(folder)) {
+        throw new Error('Dossier GitHub invalide.');
+    }
+
+    return {
+        repo,
+        branch,
+        folder,
+        webUrl: `https://github.com/${repo}/tree/${encodeURIComponent(branch)}/${folder}`
+    };
+}
+
+async function fetchGithubRepoContents(repo, branch, contentPath) {
+    const apiUrl = `https://api.github.com/repos/${repo}/contents/${contentPath}`;
+    const headers = {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'KuroVerse-Launcher'
+    };
+    const token = (process.env.GITHUB_TOKEN || '').trim();
+    if (token) headers.Authorization = `token ${token}`;
+    const response = await axios.get(apiUrl, {
+        headers,
+        params: { ref: branch },
+        timeout: 25000
+    });
+    return response && response.data ? response.data : [];
+}
+
+async function collectGithubFilesRecursive(repo, branch, rootFolder, currentFolder = rootFolder, bag = []) {
+    const entries = await fetchGithubRepoContents(repo, branch, currentFolder);
+    if (!Array.isArray(entries)) {
+        throw new Error(`Le dossier GitHub ${currentFolder} est introuvable.`);
+    }
+
+    for (const entry of entries) {
+        if (!entry || !entry.type) continue;
+        if (entry.type === 'dir') {
+            await collectGithubFilesRecursive(repo, branch, rootFolder, entry.path, bag);
+            continue;
+        }
+        if (entry.type === 'file' && entry.download_url) {
+            bag.push({
+                path: String(entry.path || ''),
+                name: String(entry.name || ''),
+                downloadUrl: String(entry.download_url)
+            });
+        }
+    }
+    return bag;
+}
+
+async function syncModsFromGithubRepository(payload = {}) {
+    ensureLauncherDataDirectories();
+    const cfg = normalizeGithubRepoPayload(payload);
+    const rootPrefix = `${cfg.folder}/`;
+    const githubFiles = await collectGithubFilesRecursive(cfg.repo, cfg.branch, cfg.folder);
+    if (!githubFiles.length) {
+        throw new Error(`Aucun fichier trouvé dans ${cfg.repo}/${cfg.folder} (${cfg.branch}).`);
+    }
+
+    let downloadedCount = 0;
+    const failed = [];
+    for (const file of githubFiles) {
+        const rawRelative = file.path.startsWith(rootPrefix) ? file.path.slice(rootPrefix.length) : file.name;
+        const safeRelative = rawRelative
+            .split('/')
+            .filter(Boolean)
+            .filter(part => part !== '.' && part !== '..')
+            .join(path.sep);
+        if (!safeRelative) continue;
+
+        const destinationPath = path.join(modsFolderPath, safeRelative);
+        ensureDirectory(path.dirname(destinationPath));
+        try {
+            await downloadFileToPath(file.downloadUrl, destinationPath);
+            downloadedCount += 1;
+        } catch (err) {
+            failed.push({
+                file: file.path,
+                error: err && err.message ? err.message : String(err)
+            });
+        }
+    }
+
+    return {
+        repo: cfg.repo,
+        branch: cfg.branch,
+        folder: cfg.folder,
+        webUrl: cfg.webUrl,
+        totalFiles: githubFiles.length,
+        downloadedCount,
+        failed
+    };
+}
+
 function readCustomModpacks() {
     ensureLauncherDataDirectories();
     if (!fs.existsSync(customModpacksFilePath)) return [];
@@ -1380,6 +1514,28 @@ ipcMain.handle('create-custom-modpack', async (event, payload = {}) => {
         return { success: true, entry, filePath: saveResult.filePath };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
+    }
+});
+
+ipcMain.handle('sync-github-mods', async (event, payload = {}) => {
+    try {
+        const result = await syncModsFromGithubRepository(payload);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('mods-installed', { installed: listInstalledModFiles(), folder: modsFolderPath });
+        }
+
+        let message = `${result.downloadedCount}/${result.totalFiles} fichier(s) mods téléchargé(s) depuis ${result.repo}/${result.folder}.`;
+        if (result.failed.length) {
+            message += ` ${result.failed.length} échec(s).`;
+        }
+
+        return {
+            success: true,
+            ...result,
+            message
+        };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
     }
 });
 
