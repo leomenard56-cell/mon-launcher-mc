@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const os = require('os');
 const { spawn, spawnSync } = require('child_process');
 const axios = require('axios');
 const unzipper = require('unzipper');
@@ -25,7 +26,9 @@ const curseForgeKeyFilePath = path.join(launcherDataPath, 'curseforge_api_key.tx
 const customModpacksFilePath = path.join(launcherDataPath, 'custom_modpacks.json');
 const updateUrlFilePath = path.join(launcherDataPath, 'update_url.txt');
 const launcherSettingsFilePath = path.join(launcherDataPath, 'launcher_settings.json');
+const launcherProfilesFilePath = path.join(launcherDataPath, 'launcher_profiles.json');
 const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
+const launcherBackupsPath = path.join(launcherDataPath, 'backups');
 const ownerCurseForgeKeyPath = path.join(__dirname, 'owner_curseforge_key.txt');
 const ELY_AUTH_BASE = 'https://authserver.ely.by';
 const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
@@ -45,6 +48,7 @@ function ensureDirectory(dirPath) {
 function ensureLauncherDataDirectories() {
     ensureDirectory(launcherDataPath);
     ensureDirectory(modsFolderPath);
+    ensureDirectory(launcherBackupsPath);
 }
 
 function normalizeLauncherSettings(rawSettings = {}) {
@@ -106,6 +110,24 @@ function getModEntryInfo(fileName) {
     return null;
 }
 
+function normalizeModStem(fileName) {
+    const baseName = String(fileName || '')
+        .replace(/\.disabled$/i, '')
+        .replace(/\.(jar|zip)$/i, '');
+    return baseName
+        .toLowerCase()
+        .replace(/[-_. ]?(?:forge|fabric|neoforge|quilt|client|server)?[-_. ]?v?\d[\w.-]*$/i, '')
+        .replace(/[-_. ]+\d[\w.-]*$/i, '')
+        .trim() || baseName.toLowerCase();
+}
+
+function getFileSha1(filePath) {
+    const hash = crypto.createHash('sha1');
+    const buffer = fs.readFileSync(filePath);
+    hash.update(buffer);
+    return hash.digest('hex');
+}
+
 function listInstalledModFiles() {
     if (!fs.existsSync(modsFolderPath)) return [];
     return fs.readdirSync(modsFolderPath)
@@ -120,11 +142,163 @@ function listInstalledModFiles() {
                 enabled: modInfo.enabled,
                 path: filePath,
                 size: stat.size,
-                modified: stat.mtimeMs
+                modified: stat.mtimeMs,
+                stem: normalizeModStem(modInfo.displayName),
+                sha1: stat.isFile() ? getFileSha1(filePath) : ''
             };
         })
         .filter(Boolean)
         .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function readLauncherProfiles() {
+    ensureLauncherDataDirectories();
+    if (!fs.existsSync(launcherProfilesFilePath)) return [];
+    try {
+        const parsed = JSON.parse(fs.readFileSync(launcherProfilesFilePath, 'utf-8'));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function writeLauncherProfiles(entries) {
+    ensureLauncherDataDirectories();
+    fs.writeFileSync(launcherProfilesFilePath, JSON.stringify(Array.isArray(entries) ? entries : [], null, 2), 'utf-8');
+}
+
+function createProfileId(name) {
+    const slug = String(name || 'profile')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'profile';
+    return `${slug}-${Date.now()}`;
+}
+
+function upsertLauncherProfile(entry) {
+    const profiles = readLauncherProfiles();
+    const index = profiles.findIndex(item => item && item.id === entry.id);
+    if (index >= 0) {
+        profiles[index] = entry;
+    } else {
+        profiles.push(entry);
+    }
+    writeLauncherProfiles(profiles);
+    return entry;
+}
+
+async function createLauncherBackup(reason = 'backup') {
+    ensureLauncherDataDirectories();
+    ensureDirectory(launcherBackupsPath);
+
+    const safeReason = String(reason || 'backup')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'backup';
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = path.join(launcherBackupsPath, `${stamp}-${safeReason}.zip`);
+    const backupEntries = [
+        { source: launcherSettingsFilePath, name: 'launcher_settings.json' },
+        { source: launcherProfilesFilePath, name: 'launcher_profiles.json' },
+        { source: customModpacksFilePath, name: 'custom_modpacks.json' },
+        { source: launcherSkinFilePath, name: 'launcher_skin.json' },
+        { source: modsFolderPath, name: 'mods' },
+        { source: path.join(launcherDataPath, 'config'), name: 'config' },
+        { source: path.join(launcherDataPath, 'defaultconfigs'), name: 'defaultconfigs' },
+        { source: path.join(launcherDataPath, 'kubejs'), name: 'kubejs' },
+        { source: path.join(launcherDataPath, 'resourcepacks'), name: 'resourcepacks' },
+        { source: path.join(launcherDataPath, 'shaderpacks'), name: 'shaderpacks' },
+        { source: path.join(launcherDataPath, 'saves'), name: 'saves' }
+    ].filter(entry => fs.existsSync(entry.source));
+
+    if (!backupEntries.length) {
+        return { success: false, skipped: true, message: 'Rien à sauvegarder.' };
+    }
+
+    await new Promise((resolve, reject) => {
+        const output = fs.createWriteStream(backupPath);
+        const archive = archiver('zip', { zlib: { level: 9 } });
+
+        output.on('close', resolve);
+        output.on('error', reject);
+        archive.on('error', reject);
+
+        archive.pipe(output);
+        archive.append(JSON.stringify({ reason, createdAt: new Date().toISOString(), host: os.hostname() }, null, 2), { name: 'backup-info.json' });
+
+        for (const entry of backupEntries) {
+            const stat = fs.statSync(entry.source);
+            if (stat.isDirectory()) {
+                archive.directory(entry.source, entry.name);
+            } else {
+                archive.file(entry.source, { name: entry.name });
+            }
+        }
+
+        archive.finalize();
+    });
+
+    return { success: true, backupPath, count: backupEntries.length };
+}
+
+async function safeCreateLauncherBackup(reason) {
+    try {
+        return await createLauncherBackup(reason);
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+}
+
+function analyzeLauncherIntegrity(mods) {
+    const issues = [];
+    const recommendations = [];
+    const requiredFolders = ['mods', 'config', 'defaultconfigs', 'kubejs', 'resourcepacks', 'shaderpacks'];
+    for (const folderName of requiredFolders) {
+        const folderPath = path.join(launcherDataPath, folderName);
+        if (!fs.existsSync(folderPath)) {
+            issues.push({ type: 'missing-folder', path: folderName, message: `Dossier manquant: ${folderName}` });
+        }
+    }
+
+    const duplicatesByStem = new Map();
+    const duplicatesByHash = new Map();
+    for (const mod of Array.isArray(mods) ? mods : []) {
+        const stemKey = String(mod.stem || mod.name || '').trim();
+        const hashKey = String(mod.sha1 || '').trim();
+        if (stemKey) {
+            if (!duplicatesByStem.has(stemKey)) duplicatesByStem.set(stemKey, []);
+            duplicatesByStem.get(stemKey).push(mod);
+        }
+        if (hashKey) {
+            if (!duplicatesByHash.has(hashKey)) duplicatesByHash.set(hashKey, []);
+            duplicatesByHash.get(hashKey).push(mod);
+        }
+
+        if (Number(mod.size || 0) <= 0) {
+            issues.push({ type: 'empty-file', path: mod.fileName, message: `Fichier vide: ${mod.fileName}` });
+        }
+    }
+
+    for (const [stem, group] of duplicatesByStem.entries()) {
+        if (group.length > 1) {
+            issues.push({ type: 'mod-conflict', path: stem, message: `Conflit potentiel: ${group.map(item => item.fileName).join(', ')}` });
+        }
+    }
+
+    for (const [hash, group] of duplicatesByHash.entries()) {
+        if (group.length > 1) {
+            recommendations.push({ type: 'duplicate-copy', path: hash, message: `Doublon identique détecté: ${group.map(item => item.fileName).join(', ')}` });
+        }
+    }
+
+    return {
+        success: true,
+        passed: issues.length === 0,
+        issues,
+        recommendations,
+        scannedMods: Array.isArray(mods) ? mods.length : 0,
+        requiredFolders
+    };
 }
 
 function getCurseForgeApiKey() {
@@ -165,7 +339,7 @@ function getSafeFileNameFromUrl(downloadUrl, fallback) {
     return fallback;
 }
 
-async function downloadCurseForgeModFile(projectId, fileId, apiKey) {
+async function downloadCurseForgeModFile(projectId, fileId, apiKey, onProgress) {
     const headers = { 'x-api-key': apiKey, Accept: 'application/json' };
     const urlResp = await axios.get(`https://api.curseforge.com/v1/mods/${projectId}/files/${fileId}/download-url`, {
         headers,
@@ -179,18 +353,10 @@ async function downloadCurseForgeModFile(projectId, fileId, apiKey) {
     const targetName = getSafeFileNameFromUrl(downloadUrl, fallbackName);
     const targetPath = path.join(modsFolderPath, targetName);
 
-    const response = await axios({
-        url: downloadUrl,
-        method: 'GET',
-        responseType: 'stream',
-        timeout: 60000
-    });
-
-    await new Promise((resolve, reject) => {
-        const writer = fs.createWriteStream(targetPath);
-        response.data.pipe(writer);
-        writer.on('finish', resolve);
-        writer.on('error', reject);
+    await downloadStreamToPath(downloadUrl, targetPath, {
+        timeout: 60000,
+        resume: true,
+        onProgress
     });
 
     return { name: targetName, path: targetPath };
@@ -706,68 +872,123 @@ async function fetchUpdateMetadata() {
     }
 }
 
+async function downloadStreamToPath(url, destinationPath, options = {}) {
+    const timeout = Number(options.timeout || 90000);
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+    const allowResume = options.resume !== false;
+    const headers = { ...(options.headers || {}) };
+
+    ensureDirectory(path.dirname(destinationPath));
+    const tempPath = `${destinationPath}.part`;
+    let existingBytes = 0;
+    if (allowResume && fs.existsSync(tempPath)) {
+        try {
+            existingBytes = fs.statSync(tempPath).size;
+        } catch (_) {
+            existingBytes = 0;
+        }
+    }
+    if (existingBytes > 0) {
+        headers.Range = `bytes=${existingBytes}-`;
+    }
+
+    const response = await axios({
+        url,
+        method: 'GET',
+        responseType: 'stream',
+        timeout,
+        maxRedirects: 10,
+        headers,
+        validateStatus: (status) => (status >= 200 && status < 300) || status === 206
+    });
+
+    let totalBytes = Number(response && response.headers && response.headers['content-length'] ? response.headers['content-length'] : 0);
+    const contentRange = String(response && response.headers && response.headers['content-range'] ? response.headers['content-range'] : '');
+    const rangeTotal = contentRange.match(/\/(\d+)$/);
+    if (rangeTotal) {
+        totalBytes = Number(rangeTotal[1]) || totalBytes;
+    }
+    if (existingBytes > 0 && Number(response.status) !== 206) {
+        existingBytes = 0;
+        totalBytes = Number(response && response.headers && response.headers['content-length'] ? response.headers['content-length'] : totalBytes) || totalBytes;
+        try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) { }
+    }
+
+    await new Promise((resolve, reject) => {
+        const writer = fs.createWriteStream(tempPath, { flags: existingBytes > 0 ? 'a' : 'w' });
+        let settled = false;
+        let downloadedBytes = existingBytes;
+        let stallTimer = null;
+
+        const cleanup = () => {
+            if (stallTimer) clearTimeout(stallTimer);
+            stallTimer = null;
+            writer.removeAllListeners();
+            response.data.removeAllListeners('data');
+            response.data.removeAllListeners('error');
+        };
+
+        const fail = (err) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            try { response.data.destroy(); } catch (_) { }
+            try { writer.destroy(); } catch (_) { }
+            reject(err);
+        };
+
+        const armStallTimer = () => {
+            if (stallTimer) clearTimeout(stallTimer);
+            stallTimer = setTimeout(() => fail(new Error('DOWNLOAD_STALL_TIMEOUT: aucun progrès de téléchargement.')), Math.max(15000, Math.min(45000, timeout / 3)));
+        };
+
+        armStallTimer();
+        response.data.on('data', (chunk) => {
+            downloadedBytes += chunk.length;
+            armStallTimer();
+            if (onProgress) {
+                onProgress({ current: downloadedBytes, total: totalBytes, resumedBytes: existingBytes, resume: existingBytes > 0 });
+            }
+        });
+
+        response.data.on('error', fail);
+        writer.on('error', fail);
+        writer.on('finish', () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve();
+        });
+
+        response.data.pipe(writer);
+    });
+
+    try {
+        if (fs.existsSync(destinationPath)) fs.unlinkSync(destinationPath);
+    } catch (_) { }
+    fs.renameSync(tempPath, destinationPath);
+    return { destinationPath, totalBytes };
+}
+
 async function downloadUpdateInstaller(url, onProgress) {
     if (!fs.existsSync(UPDATE_DOWNLOAD_DIR)) fs.mkdirSync(UPDATE_DOWNLOAD_DIR, { recursive: true });
     const installerPath = path.join(UPDATE_DOWNLOAD_DIR, 'latest-updater.exe');
     try {
-        const response = await axios({
-            url,
-            method: 'GET',
-            responseType: 'stream',
+        const result = await downloadStreamToPath(url, installerPath, {
             timeout: 180000,
-            maxRedirects: 10
-        });
-        const totalBytes = Number(response && response.headers && response.headers['content-length'] ? response.headers['content-length'] : 0);
-
-        await new Promise((resolve, reject) => {
-            const writer = fs.createWriteStream(installerPath);
-            let settled = false;
-            let downloadedBytes = 0;
-            let stallTimer = null;
-
-            const cleanup = () => {
-                if (stallTimer) clearTimeout(stallTimer);
-                stallTimer = null;
-                writer.removeAllListeners();
-                response.data.removeAllListeners('data');
-                response.data.removeAllListeners('error');
-            };
-
-            const fail = (err) => {
-                if (settled) return;
-                settled = true;
-                cleanup();
-                try { response.data.destroy(); } catch (_) { }
-                try { writer.destroy(); } catch (_) { }
-                reject(err);
-            };
-
-            const armStallTimer = () => {
-                if (stallTimer) clearTimeout(stallTimer);
-                stallTimer = setTimeout(() => {
-                    fail(new Error('DOWNLOAD_STALL_TIMEOUT: aucun progrès de téléchargement.'));
-                }, 25000);
-            };
-
-            armStallTimer();
-            response.data.on('data', (chunk) => {
-                downloadedBytes += chunk.length;
-                armStallTimer();
+            resume: true,
+            onProgress: (progress) => {
                 if (typeof onProgress === 'function') {
-                    onProgress({ current: downloadedBytes, total: totalBytes, files: 1, name: 'update-installer' });
+                    onProgress({
+                        current: progress.current,
+                        total: progress.total,
+                        files: 1,
+                        name: 'update-installer',
+                        resumedBytes: progress.resumedBytes || 0,
+                        resume: !!progress.resume
+                    });
                 }
-            });
-
-            response.data.on('error', fail);
-            writer.on('error', fail);
-            writer.on('finish', () => {
-                if (settled) return;
-                settled = true;
-                cleanup();
-                resolve();
-            });
-
-            response.data.pipe(writer);
+            }
         });
 
         return installerPath;
@@ -916,7 +1137,22 @@ async function syncModsFromGithubRepository(payload = {}) {
         const destinationPath = path.join(modsFolderPath, safeRelative);
         ensureDirectory(path.dirname(destinationPath));
         try {
-            await downloadFileToPath(file.downloadUrl, destinationPath);
+            await downloadStreamToPath(file.downloadUrl, destinationPath, {
+                timeout: 90000,
+                resume: true,
+                onProgress: (progress) => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('launcher-download-status', {
+                            current: progress.current,
+                            total: progress.total,
+                            files: downloadedCount + 1,
+                            name: file.name,
+                            resumedBytes: progress.resumedBytes || 0,
+                            resume: !!progress.resume
+                        });
+                    }
+                }
+            });
             downloadedCount += 1;
         } catch (err) {
             failed.push({
@@ -985,14 +1221,7 @@ function upsertCustomModpackEntry(entry) {
 }
 
 async function downloadFileToPath(url, destinationPath) {
-    ensureDirectory(path.dirname(destinationPath));
-    const response = await axios({ url, method: 'GET', responseType: 'stream', timeout: 90000 });
-    await new Promise((resolve, reject) => {
-        const writer = fs.createWriteStream(destinationPath);
-        response.data.pipe(writer);
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-    });
+    await downloadStreamToPath(url, destinationPath, { timeout: 90000, resume: true });
     return destinationPath;
 }
 
@@ -1512,6 +1741,7 @@ ipcMain.handle('create-custom-modpack', async (event, payload = {}) => {
 
 ipcMain.handle('sync-github-mods', async (event, payload = {}) => {
     try {
+        const backup = await safeCreateLauncherBackup('github-mods-sync');
         const result = await syncModsFromGithubRepository(payload);
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('mods-installed', { installed: listInstalledModFiles(), folder: modsFolderPath });
@@ -1521,10 +1751,14 @@ ipcMain.handle('sync-github-mods', async (event, payload = {}) => {
         if (result.failed.length) {
             message += ` ${result.failed.length} échec(s).`;
         }
+        if (backup && backup.success) {
+            message += ` Backup créé: ${backup.backupPath}.`;
+        }
 
         return {
             success: true,
             ...result,
+            backup: backup && backup.success ? backup.backupPath : null,
             message
         };
     } catch (err) {
@@ -1579,6 +1813,78 @@ ipcMain.handle('save-launcher-settings', async (event, payload = {}) => {
     }
 });
 
+ipcMain.handle('get-launcher-profiles', async () => {
+    try {
+        return { success: true, profiles: readLauncherProfiles() };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
+ipcMain.handle('save-launcher-profile', async (event, payload = {}) => {
+    try {
+        const normalized = normalizeProfilePayload(payload);
+        if (!normalized.name) {
+            return { success: false, error: 'Nom de profil invalide.' };
+        }
+        const existingProfiles = readLauncherProfiles();
+        const id = payload && payload.id ? String(payload.id) : createProfileId(normalized.name);
+        const entry = {
+            id,
+            name: normalized.name,
+            moddedDefault: normalized.moddedDefault,
+            settings: normalized.settings,
+            createdAt: payload && payload.createdAt ? payload.createdAt : Date.now(),
+            updatedAt: Date.now()
+        };
+        const index = existingProfiles.findIndex(item => item && item.id === id);
+        if (index >= 0) existingProfiles[index] = entry;
+        else existingProfiles.push(entry);
+        writeLauncherProfiles(existingProfiles);
+        return { success: true, profile: entry, profiles: existingProfiles };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
+ipcMain.handle('delete-launcher-profile', async (event, payload = {}) => {
+    try {
+        const id = payload && payload.id ? String(payload.id) : '';
+        if (!id) return { success: false, error: 'id manquant.' };
+        const profiles = readLauncherProfiles().filter(item => item && item.id !== id);
+        writeLauncherProfiles(profiles);
+        return { success: true, profiles };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
+ipcMain.handle('apply-launcher-profile', async (event, payload = {}) => {
+    try {
+        const id = payload && payload.id ? String(payload.id) : '';
+        if (!id) return { success: false, error: 'id manquant.' };
+        const profiles = readLauncherProfiles();
+        const profile = profiles.find(item => item && item.id === id);
+        if (!profile) return { success: false, error: 'Profil introuvable.' };
+        const settings = writeLauncherSettings(profile.settings || {});
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setSize(settings.windowWidth, settings.windowHeight, true);
+        }
+        return { success: true, profile, settings };
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
+ipcMain.handle('verify-launcher-integrity', async () => {
+    try {
+        const mods = listInstalledModFiles();
+        return analyzeLauncherIntegrity(mods);
+    } catch (err) {
+        return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+});
+
 ipcMain.handle('install-custom-modpack-update', async (event, payload = {}) => {
     try {
         ensureLauncherDataDirectories();
@@ -1589,6 +1895,8 @@ ipcMain.handle('install-custom-modpack-update', async (event, payload = {}) => {
         const target = entries.find(e => e && e.id === id);
         if (!target) return { success: false, error: 'Pack personnalisé introuvable.' };
         if (!target.manifestUrl) return { success: false, error: 'manifestUrl manquante pour ce pack.' };
+
+        const backup = await safeCreateLauncherBackup(`custom-modpack-update-${target.name || id}`);
 
         const remote = await getCustomModpackRemoteMeta(target);
         if (!remote) return { success: false, error: 'Manifest distant invalide.' };
@@ -1607,7 +1915,8 @@ ipcMain.handle('install-custom-modpack-update', async (event, payload = {}) => {
             success: true,
             entry: target,
             import: imported,
-            message: `Pack ${target.name} mis à jour vers ${remote.version}`
+            backup: backup && backup.success ? backup.backupPath : null,
+            message: `Pack ${target.name} mis à jour vers ${remote.version}${backup && backup.success ? ` (backup: ${backup.backupPath})` : ''}`
         };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
@@ -1819,16 +2128,11 @@ ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
         }
 
         if (type === 'modpacks') {
+            const backup = await safeCreateLauncherBackup(`curseforge-modpack-${projectId}-${fileId}`);
             const url = await fetchCurseForgeJson(`/mods/${projectId}/files/${fileId}/download-url`, apiKey);
             if (!url) return { success: false, error: 'URL de téléchargement introuvable pour ce modpack.' };
             const tempZipPath = path.join(launcherDataPath, `curseforge-pack-${projectId}-${fileId}.zip`);
-            const response = await axios({ url, method: 'GET', responseType: 'stream', timeout: 60000 });
-            await new Promise((resolve, reject) => {
-                const writer = fs.createWriteStream(tempZipPath);
-                response.data.pipe(writer);
-                writer.on('finish', resolve);
-                writer.on('error', reject);
-            });
+            await downloadStreamToPath(url, tempZipPath, { timeout: 60000, resume: true });
             const imported = await importCurseForgePackFromZip(tempZipPath);
             try { fs.unlinkSync(tempZipPath); } catch (_) { }
             return {
@@ -1836,12 +2140,24 @@ ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
                 mode: 'modpack',
                 projectId,
                 fileId,
-                message: `Modpack importé: ${imported.message}`,
+                backup: backup && backup.success ? backup.backupPath : null,
+                message: `Modpack importé: ${imported.message}${backup && backup.success ? ` | Backup: ${backup.backupPath}` : ''}`,
                 import: imported
             };
         }
 
-        const downloaded = await downloadCurseForgeModFile(projectId, fileId, apiKey);
+        const downloaded = await downloadCurseForgeModFile(projectId, fileId, apiKey, (progress) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('launcher-download-status', {
+                    current: progress.current,
+                    total: progress.total,
+                    files: 1,
+                    name: `curseforge-${projectId}-${fileId}`,
+                    resumedBytes: progress.resumedBytes || 0,
+                    resume: !!progress.resume
+                });
+            }
+        });
         mainWindow.webContents.send('mods-installed', { installed: listInstalledModFiles(), folder: modsFolderPath });
         return {
             success: true,
@@ -1859,6 +2175,7 @@ ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
 ipcMain.handle('import-curseforge-pack', async () => {
     try {
         ensureLauncherDataDirectories();
+        const backup = await safeCreateLauncherBackup('import-curseforge-pack');
         const result = await dialog.showOpenDialog(mainWindow, {
             title: 'Importez un modpack CurseForge (.zip)',
             properties: ['openFile'],
@@ -1869,7 +2186,12 @@ ipcMain.handle('import-curseforge-pack', async () => {
         if (result.canceled || !result.filePaths.length) return { success: false, canceled: true };
 
         const zipPath = result.filePaths[0];
-        return await importCurseForgePackFromZip(zipPath);
+        const imported = await importCurseForgePackFromZip(zipPath);
+        if (backup && backup.success) {
+            imported.backup = backup.backupPath;
+            imported.message = `${imported.message} Backup: ${backup.backupPath}`;
+        }
+        return imported;
     } catch (err) {
         console.error('Erreur import-curseforge-pack:', err);
         return { success: false, error: err.message || String(err) };
@@ -1905,6 +2227,7 @@ ipcMain.handle('export-modpack', async () => {
 ipcMain.handle('import-tlauncher-profile', async () => {
     try {
         ensureLauncherDataDirectories();
+        const backup = await safeCreateLauncherBackup('import-tlauncher-profile');
         const defaultMinecraftDir = path.join(app.getPath('appData'), '.minecraft');
         const dialogResult = await dialog.showOpenDialog(mainWindow, {
             title: 'Sélectionner le dossier profil TLauncher/.minecraft',
@@ -1927,7 +2250,8 @@ ipcMain.handle('import-tlauncher-profile', async () => {
             importedFiles: imported.importedFiles,
             importedFolderCount: imported.importedFolderCount,
             installedModsCount: installedMods.length,
-            message: `Import TLauncher terminé (${imported.importedFolderCount} fichier(s) dossier + ${imported.importedFiles.length} fichier(s) racine).`
+            backup: backup && backup.success ? backup.backupPath : null,
+            message: `Import TLauncher terminé (${imported.importedFolderCount} fichier(s) dossier + ${imported.importedFiles.length} fichier(s) racine)${backup && backup.success ? ` | Backup: ${backup.backupPath}` : ''}.`
         };
     } catch (err) {
         return { success: false, error: err && err.message ? err.message : String(err) };

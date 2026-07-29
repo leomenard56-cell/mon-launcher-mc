@@ -284,6 +284,12 @@
         .progress-container { width: 100%; background: #222; border-radius: 4px; margin-top: 15px; display: none; height: 6px; overflow: hidden; }
         .progress-bar { width: 0%; height: 100%; background: #ff5500; transition: width 0.1s ease; }
         .download-infos { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-top: 6px; }
+        .mods-toolbar, .profiles-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+        .mods-toolbar input, .mods-toolbar select, .profiles-toolbar input { flex:1 1 160px; min-width:160px; background:#121220; border:1px solid #2e2e3f; color:#fff; border-radius:8px; padding:10px; }
+        .filter-chip { display:inline-flex; align-items:center; gap:6px; background:#121220; border:1px solid #2e2e3f; color:#ddd; border-radius:999px; padding:8px 12px; font-size:12px; }
+        .profile-row { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+        .profile-meta { font-size:12px; color:#a8a8b3; line-height:1.45; }
+        .report-box { background:#101018; border:1px solid #2e2e3f; border-radius:10px; padding:12px; font-size:12px; color:#b6b6c7; white-space:pre-wrap; max-height:180px; overflow:auto; }
         .auth-status { font-size: 12px; color: #fca311; background: #1a1a1e; border: 1px solid #2a2a2f; border-radius: 8px; padding: 10px; margin-top: 10px; min-height: 42px; line-height: 1.35; white-space: pre-line; }
         #status-text { font-size: 11px; color: #aaa; margin-top: 6px; text-align: center; font-style: italic; }
     </style>
@@ -299,6 +305,10 @@
                     <p id="playerStatus">En attente</p>
                 </div>
             </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                <button id="copyCrashReportBtn" class="btn-connexion" style="margin:0; background:#374151; width:auto; padding:10px 14px;">Copier rapport crash</button>
+            </div>
+            <p class="small-note" id="crashReportInfo" style="margin-top:8px;">Le rapport inclut les derniers logs, les réglages du launcher et l’état actuel.</p>
 
             <div class="shop-section">
                 <div class="shop-title">Connexion rapide</div>
@@ -365,6 +375,7 @@
             </div>
             <div class="panel-card">
                 <div class="mods-list">
+                    <div class="mod-item"><h4>v1.0.31</h4><p>Ajout des profils de lancement, sauvegardes automatiques avant import/sync, vérification d'intégrité, rapport de crash et téléchargements résumables.</p></div>
                     <div class="mod-item"><h4>v1.0.30</h4><p>Fix crash export pack: création ZIP réécrite sans PowerShell pour stabiliser "Créer un pack local" et "Créer le pack" (Mods Pack Personnaliser).</p></div>
                     <div class="mod-item"><h4>v1.0.29</h4><p>Mods Pack Personnaliser: ajout du lien GitHub du dossier mods + bouton 1 clic pour télécharger tous les mods depuis le dépôt.</p></div>
                     <div class="mod-item"><h4>v1.0.28</h4><p>CurseForge: ajout du choix de version comme dans l'onglet Files (popup des builds), avec installation directe de la version sélectionnée.</p></div>
@@ -398,6 +409,24 @@
                 <div class="panel-card">
                     <h2 style="font-size:20px; margin-bottom:10px;">Mods installés</h2>
                     <p class="small-note" style="margin-bottom:12px;">Ici tu vois les mods présents dans ton dossier du launcher. Les packs CurseForge importés extraient les dossiers <i>mods</i>, <i>config</i> et similaires.</p>
+                    <div class="mods-toolbar">
+                        <input id="modsSearchInput" type="text" placeholder="Rechercher un mod, fichier ou conflit...">
+                        <select id="modsSortSelect">
+                            <option value="name-asc">Nom A → Z</option>
+                            <option value="name-desc">Nom Z → A</option>
+                            <option value="size-desc">Taille décroissante</option>
+                            <option value="size-asc">Taille croissante</option>
+                            <option value="date-desc">Modifié récent</option>
+                            <option value="date-asc">Modifié ancien</option>
+                        </select>
+                    </div>
+                    <div class="mods-toolbar" style="margin-bottom:10px;">
+                        <label class="filter-chip"><input id="modsShowEnabledChk" type="checkbox" checked> Actifs</label>
+                        <label class="filter-chip"><input id="modsShowDisabledChk" type="checkbox" checked> Désactivés</label>
+                        <label class="filter-chip"><input id="modsShowConflictsChk" type="checkbox" checked> Conflits</label>
+                        <button id="verifyIntegrityBtn" class="btn-connexion" style="margin:0; background:#8b5cf6; width:auto; padding:10px 14px;">Vérifier l'intégrité</button>
+                    </div>
+                    <p class="small-note" id="integrityInfo" style="margin-bottom:12px; min-height:20px;">Aucune vérification effectuée.</p>
                     <div class="mods-list" id="modsList"></div>
                 </div>
                 <div>
@@ -650,6 +679,16 @@
                 </div>
             </div>
             <div class="settings-field" style="margin-bottom: 10px;">
+                <label>Profils de lancement</label>
+                <div class="profiles-toolbar">
+                    <input id="launcherProfileNameInput" type="text" placeholder="Nom du profil" style="flex:1 1 220px; min-width:220px; background:#121220; border:1px solid #2e2e3f; color:#fff; border-radius:8px; padding:10px;">
+                    <button id="saveLauncherProfileBtn" class="btn-connexion" style="margin:0; background:#16a34a; width:auto; padding:10px 14px;">Sauver le profil</button>
+                    <button id="refreshLauncherProfilesBtn" class="btn-connexion" style="margin:0; background:#3b82f6; width:auto; padding:10px 14px;">Rafraîchir</button>
+                </div>
+                <div class="mods-list" id="launcherProfilesList" style="max-height:220px;"></div>
+                <p class="settings-note" id="launcherProfilesInfo" style="margin-top:8px;">Sauvegarde plusieurs configurations de RAM et de fenêtre.</p>
+            </div>
+            <div class="settings-field" style="margin-bottom: 10px;">
                 <label>Résolutions rapides</label>
                 <div class="resolution-presets">
                     <button class="resolution-preset" data-width="1280" data-height="720" type="button">1280 × 720</button>
@@ -688,11 +727,18 @@
         const settingsBtn = document.getElementById('settingsBtn'), settingsOverlay = document.getElementById('settingsOverlay'), closeSettingsBtn = document.getElementById('closeSettingsBtn'), saveSettingsBtn = document.getElementById('saveSettingsBtn'), launcherWidthInput = document.getElementById('launcherWidthInput'), launcherHeightInput = document.getElementById('launcherHeightInput'), minecraftRamInput = document.getElementById('minecraftRamInput');
         const resolutionPresetButtons = Array.from(document.querySelectorAll('.resolution-preset'));
         const authStatus = document.getElementById('authStatus');
+        const crashReportInfo = document.getElementById('crashReportInfo'), copyCrashReportBtn = document.getElementById('copyCrashReportBtn');
+        const modsSearchInput = document.getElementById('modsSearchInput'), modsSortSelect = document.getElementById('modsSortSelect'), modsShowEnabledChk = document.getElementById('modsShowEnabledChk'), modsShowDisabledChk = document.getElementById('modsShowDisabledChk'), modsShowConflictsChk = document.getElementById('modsShowConflictsChk'), verifyIntegrityBtn = document.getElementById('verifyIntegrityBtn'), integrityInfo = document.getElementById('integrityInfo');
+        const launcherProfileNameInput = document.getElementById('launcherProfileNameInput'), saveLauncherProfileBtn = document.getElementById('saveLauncherProfileBtn'), refreshLauncherProfilesBtn = document.getElementById('refreshLauncherProfilesBtn'), launcherProfilesList = document.getElementById('launcherProfilesList'), launcherProfilesInfo = document.getElementById('launcherProfilesInfo');
         let microsoftLoginInProgress = false;
         let lastDownloadTick = { time: 0, bytes: 0 };
         let hasByteBasedDownload = false;
         let launcherSettings = { windowWidth: 1000, windowHeight: 600, minecraftRamGb: 6 };
         const curseForgeState = { index: 0, pageSize: 20, totalCount: 0, type: 'mods' };
+        let installedModsCache = [];
+        let launcherProfilesCache = [];
+        const launcherLogBuffer = [];
+        const modsViewState = { search: '', sort: 'name-asc', showEnabled: true, showDisabled: true, showConflicts: true };
         let skinSourceImage = null;
         let skinMirror = false;
         let appliedLauncherSkinDataUrl = null;
@@ -710,6 +756,146 @@
         const setAuthStatus = (text, color) => {
             authStatus.innerText = text;
             if (color) authStatus.style.color = color;
+        };
+
+        const pushLauncherLog = (line) => {
+            const text = String(line || '').trim();
+            if (!text) return;
+            launcherLogBuffer.push({ at: new Date().toISOString(), text });
+            if (launcherLogBuffer.length > 80) launcherLogBuffer.shift();
+        };
+
+        const buildCrashReport = () => {
+            const settingsBlock = JSON.stringify(launcherSettings || {}, null, 2);
+            const modsBlock = JSON.stringify((installedModsCache || []).slice(0, 20).map((mod) => ({
+                name: mod.name,
+                fileName: mod.fileName,
+                enabled: mod.enabled,
+                size: mod.size,
+                stem: mod.stem,
+                sha1: mod.sha1
+            })), null, 2);
+            const logsBlock = launcherLogBuffer.map((row) => `[${row.at}] ${row.text}`).join('\n');
+            return [
+                'KuroVerse crash report',
+                `GeneratedAt: ${new Date().toISOString()}`,
+                `Platform: ${navigator.platform}`,
+                `UserAgent: ${navigator.userAgent}`,
+                `LauncherSettings: ${settingsBlock}`,
+                `InstalledMods: ${modsBlock}`,
+                `RecentLogs:\n${logsBlock || '(aucun log)'}`
+            ].join('\n\n');
+        };
+
+        const updateCrashReportHint = () => {
+            if (!crashReportInfo) return;
+            crashReportInfo.innerText = `Le rapport contient ${launcherLogBuffer.length} log(s) récent(s) et ${installedModsCache.length} mod(s).`;
+        };
+
+        const getModsConflictMap = (mods) => {
+            const groups = new Map();
+            for (const mod of Array.isArray(mods) ? mods : []) {
+                const key = String(mod.stem || mod.name || '').trim().toLowerCase();
+                if (!key) continue;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(mod);
+            }
+            return groups;
+        };
+
+        const sortMods = (mods, sortMode) => {
+            const rows = [...mods];
+            switch (sortMode) {
+                case 'name-desc':
+                    rows.sort((a, b) => String(b.name || '').localeCompare(String(a.name || ''), 'fr'));
+                    break;
+                case 'size-desc':
+                    rows.sort((a, b) => Number(b.size || 0) - Number(a.size || 0));
+                    break;
+                case 'size-asc':
+                    rows.sort((a, b) => Number(a.size || 0) - Number(b.size || 0));
+                    break;
+                case 'date-desc':
+                    rows.sort((a, b) => Number(b.modified || 0) - Number(a.modified || 0));
+                    break;
+                case 'date-asc':
+                    rows.sort((a, b) => Number(a.modified || 0) - Number(b.modified || 0));
+                    break;
+                default:
+                    rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr'));
+                    break;
+            }
+            return rows;
+        };
+
+        const renderModsList = (mods) => {
+            installedModsCache = Array.isArray(mods) ? mods : [];
+            const search = String(modsSearchInput && modsSearchInput.value ? modsSearchInput.value : '').trim().toLowerCase();
+            modsViewState.search = search;
+            modsViewState.sort = modsSortSelect ? modsSortSelect.value : modsViewState.sort;
+            modsViewState.showEnabled = modsShowEnabledChk ? !!modsShowEnabledChk.checked : true;
+            modsViewState.showDisabled = modsShowDisabledChk ? !!modsShowDisabledChk.checked : true;
+            modsViewState.showConflicts = modsShowConflictsChk ? !!modsShowConflictsChk.checked : true;
+
+            const conflictMap = getModsConflictMap(installedModsCache);
+            const filtered = sortMods(installedModsCache.filter((mod) => {
+                if (!modsViewState.showEnabled && mod.enabled) return false;
+                if (!modsViewState.showDisabled && !mod.enabled) return false;
+                const conflictGroup = conflictMap.get(String(mod.stem || mod.name || '').trim().toLowerCase()) || [];
+                if (!modsViewState.showConflicts && conflictGroup.length > 1) return false;
+                if (!search) return true;
+                const haystack = [mod.name, mod.fileName, mod.stem, mod.sha1].join(' ').toLowerCase();
+                return haystack.includes(search);
+            }), modsViewState.sort);
+
+            if (!filtered.length) {
+                modsList.innerHTML = '<div class="mod-item"><h4>Aucun mod correspondant</h4><p>Essaie un autre filtre ou recherche.</p></div>';
+                updateCrashReportHint();
+                return;
+            }
+
+            modsList.innerHTML = filtered.map(mod => {
+                const conflictGroup = conflictMap.get(String(mod.stem || mod.name || '').trim().toLowerCase()) || [];
+                const conflictLabel = conflictGroup.length > 1 ? `Conflit potentiel (${conflictGroup.length})` : '';
+                const hashLabel = mod.sha1 ? mod.sha1.slice(0, 10) : 'n/a';
+                return `
+                <div class="mod-item">
+                    <div class="mod-item-top">
+                        <h4>${mod.name}</h4>
+                        <button class="mod-toggle-btn" data-mod-name="${encodeURIComponent(mod.name)}" data-enabled="${mod.enabled ? '1' : '0'}">${mod.enabled ? 'ON' : 'OFF'}</button>
+                    </div>
+                    <p>Etat: ${mod.enabled ? 'Actif' : 'Désactivé'}${conflictLabel ? ` | ${conflictLabel}` : ''}</p>
+                    <p>${(mod.size / 1048576).toFixed(2)} Mo | ${new Date(mod.modified).toLocaleString()}</p>
+                    <p style="font-size:11px; color:#8c8ca3;">${mod.fileName} | ${mod.stem || 'sans-stem'} | ${hashLabel}</p>
+                </div>
+            `;
+            }).join('');
+            updateCrashReportHint();
+        };
+
+        const renderLauncherProfiles = (profiles) => {
+            launcherProfilesCache = Array.isArray(profiles) ? profiles : [];
+            if (!launcherProfilesCache.length) {
+                launcherProfilesList.innerHTML = '<div class="mod-item"><h4>Aucun profil enregistré</h4><p>Crée un profil pour mémoriser RAM, taille de fenêtre et mode de lancement.</p></div>';
+                launcherProfilesInfo.innerText = 'Aucun profil enregistré.';
+                return;
+            }
+
+            launcherProfilesList.innerHTML = launcherProfilesCache.map((profile) => `
+                <div class="mod-item">
+                    <div class="profile-row">
+                        <div>
+                            <h4>${profile.name}</h4>
+                            <div class="profile-meta">${profile.settings.windowWidth}x${profile.settings.windowHeight} | ${profile.settings.minecraftRamGb} Go RAM | ${profile.moddedDefault ? 'Moddé par défaut' : 'Vanilla par défaut'}</div>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                            <button class="btn-connexion profile-apply-btn" data-id="${profile.id}" style="margin:0; background:#16a34a; width:auto; padding:10px 14px;">Appliquer</button>
+                            <button class="btn-connexion profile-delete-btn" data-id="${profile.id}" style="margin:0; background:#e63946; width:auto; padding:10px 14px;">Supprimer</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            launcherProfilesInfo.innerText = `${launcherProfilesCache.length} profil(s) enregistré(s).`;
         };
 
         const setTab = (name) => {
@@ -955,6 +1141,7 @@
 
         const openSettings = async () => {
             await loadLauncherSettings();
+            await refreshLauncherProfiles();
             settingsOverlay.style.display = 'flex';
         };
 
@@ -987,24 +1174,6 @@
                 launcherHeightInput.value = button.dataset.height;
             });
         });
-
-        const renderModsList = (mods) => {
-            if (!mods || !mods.length) {
-                modsList.innerHTML = '<div class="mod-item"><h4>Aucun mod installé</h4><p>Ajoute un fichier .jar/.zip ou importe un pack CurseForge.</p></div>';
-                return;
-            }
-            modsList.innerHTML = mods.map(mod => `
-                <div class="mod-item">
-                    <div class="mod-item-top">
-                        <h4>${mod.name}</h4>
-                        <button class="mod-toggle-btn" data-mod-name="${encodeURIComponent(mod.name)}" data-enabled="${mod.enabled ? '1' : '0'}">${mod.enabled ? 'ON' : 'OFF'}</button>
-                    </div>
-                    <p>Etat: ${mod.enabled ? 'Actif' : 'Désactivé'}</p>
-                    <p>${(mod.size / 1048576).toFixed(2)} Mo</p>
-                    <p>${new Date(mod.modified).toLocaleString()}</p>
-                </div>
-            `).join('');
-        };
 
         const refreshModsList = async () => {
             const result = await window.launcherAPI.listInstalledMods();
@@ -1259,6 +1428,84 @@
             const updates = result.entries.filter(e => e.updateAvailable).length;
             customPacksInfo.innerText = `${updates} mise(s) à jour disponible(s).`;
             renderCustomPacks(result.entries);
+        };
+
+        const refreshLauncherProfiles = async () => {
+            if (!window.launcherAPI || !window.launcherAPI.getLauncherProfiles) return;
+            const result = await window.launcherAPI.getLauncherProfiles();
+            if (!result || !result.success) {
+                launcherProfilesInfo.innerText = 'Impossible de charger les profils: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                renderLauncherProfiles([]);
+                return;
+            }
+            renderLauncherProfiles(result.profiles || []);
+        };
+
+        const verifyIntegrity = async () => {
+            verifyIntegrityBtn.disabled = true;
+            verifyIntegrityBtn.innerText = 'Vérification...';
+            const result = await window.launcherAPI.verifyLauncherIntegrity();
+            verifyIntegrityBtn.disabled = false;
+            verifyIntegrityBtn.innerText = "Vérifier l'intégrité";
+            if (!result || !result.success) {
+                integrityInfo.innerText = 'Erreur vérification: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+
+            const issueCount = Array.isArray(result.issues) ? result.issues.length : 0;
+            const warningCount = Array.isArray(result.recommendations) ? result.recommendations.length : 0;
+            if (result.passed) {
+                integrityInfo.innerText = `Intégrité OK: ${result.scannedMods || 0} mod(s) vérifié(s).`;
+                return;
+            }
+
+            const issueLines = (result.issues || []).slice(0, 5).map((row) => `- ${row.message}`).join('\n');
+            const warningLines = (result.recommendations || []).slice(0, 3).map((row) => `- ${row.message}`).join('\n');
+            integrityInfo.innerText = `Problèmes détectés: ${issueCount}${warningCount ? ` | avertissements: ${warningCount}` : ''}\n${issueLines}${warningLines ? `\n${warningLines}` : ''}`;
+        };
+
+        const saveCurrentLauncherProfile = async () => {
+            const name = String(launcherProfileNameInput.value || '').trim();
+            if (!name) {
+                launcherProfilesInfo.innerText = 'Entre un nom de profil avant de sauvegarder.';
+                return;
+            }
+            const payload = {
+                name,
+                moddedDefault: !!moddedCheckbox.checked,
+                settings: clampSettings({
+                    windowWidth: Number(launcherWidthInput.value),
+                    windowHeight: Number(launcherHeightInput.value),
+                    minecraftRamGb: Number(minecraftRamInput.value)
+                })
+            };
+            saveLauncherProfileBtn.disabled = true;
+            saveLauncherProfileBtn.innerText = 'Sauvegarde...';
+            const result = await window.launcherAPI.saveLauncherProfile(payload);
+            saveLauncherProfileBtn.disabled = false;
+            saveLauncherProfileBtn.innerText = 'Sauver le profil';
+            if (!result || !result.success) {
+                launcherProfilesInfo.innerText = 'Sauvegarde profil échouée: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                return;
+            }
+            launcherProfilesInfo.innerText = `Profil enregistré: ${result.profile.name}`;
+            await refreshLauncherProfiles();
+        };
+
+        const copyCrashReport = async () => {
+            const report = buildCrashReport();
+            try {
+                await navigator.clipboard.writeText(report);
+                crashReportInfo.innerText = 'Rapport de crash copié dans le presse-papiers.';
+            } catch (_) {
+                const reportWindow = window.open('', '_blank', 'width=700,height=700');
+                if (reportWindow) {
+                    reportWindow.document.write(`<pre style="white-space:pre-wrap;font-family:monospace;">${report.replace(/</g, '&lt;')}</pre>`);
+                    crashReportInfo.innerText = 'Presse-papiers indisponible: le rapport a été ouvert dans une nouvelle fenêtre.';
+                } else {
+                    crashReportInfo.innerText = 'Impossible de copier automatiquement le rapport.';
+                }
+            }
         };
 
         const buildGithubModsFolderUrl = () => {
@@ -1665,6 +1912,55 @@
         refreshCustomPacksBtn.addEventListener('click', refreshCustomPacks);
         checkCustomUpdatesBtn.addEventListener('click', checkCustomPacksUpdates);
 
+        if (modsSearchInput) modsSearchInput.addEventListener('input', () => renderModsList(installedModsCache));
+        if (modsSortSelect) modsSortSelect.addEventListener('change', () => renderModsList(installedModsCache));
+        if (modsShowEnabledChk) modsShowEnabledChk.addEventListener('change', () => renderModsList(installedModsCache));
+        if (modsShowDisabledChk) modsShowDisabledChk.addEventListener('change', () => renderModsList(installedModsCache));
+        if (modsShowConflictsChk) modsShowConflictsChk.addEventListener('change', () => renderModsList(installedModsCache));
+        if (verifyIntegrityBtn) verifyIntegrityBtn.addEventListener('click', verifyIntegrity);
+        if (copyCrashReportBtn) copyCrashReportBtn.addEventListener('click', copyCrashReport);
+        if (saveLauncherProfileBtn) saveLauncherProfileBtn.addEventListener('click', saveCurrentLauncherProfile);
+        if (refreshLauncherProfilesBtn) refreshLauncherProfilesBtn.addEventListener('click', refreshLauncherProfiles);
+
+        if (launcherProfilesList) {
+            launcherProfilesList.addEventListener('click', async (event) => {
+                const applyBtn = event.target.closest('.profile-apply-btn');
+                if (applyBtn) {
+                    const id = applyBtn.getAttribute('data-id');
+                    if (!id) return;
+                    applyBtn.disabled = true;
+                    applyBtn.innerText = 'Application...';
+                    const result = await window.launcherAPI.applyLauncherProfile({ id });
+                    applyBtn.disabled = false;
+                    applyBtn.innerText = 'Appliquer';
+                    if (!result || !result.success) {
+                        launcherProfilesInfo.innerText = 'Application profil échouée: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                        return;
+                    }
+                    applySettingsToForm(result.settings || launcherSettings);
+                    launcherProfilesInfo.innerText = `Profil appliqué: ${result.profile.name}`;
+                    await refreshLauncherProfiles();
+                    return;
+                }
+
+                const deleteBtn = event.target.closest('.profile-delete-btn');
+                if (!deleteBtn) return;
+                const id = deleteBtn.getAttribute('data-id');
+                if (!id) return;
+                deleteBtn.disabled = true;
+                deleteBtn.innerText = 'Suppression...';
+                const result = await window.launcherAPI.deleteLauncherProfile({ id });
+                deleteBtn.disabled = false;
+                deleteBtn.innerText = 'Supprimer';
+                if (!result || !result.success) {
+                    launcherProfilesInfo.innerText = 'Suppression profil échouée: ' + (result && result.error ? result.error : 'Erreur inconnue');
+                    return;
+                }
+                launcherProfilesInfo.innerText = 'Profil supprimé.';
+                await refreshLauncherProfiles();
+            });
+        }
+
         customPacksList.addEventListener('click', async (event) => {
             const btn = event.target.closest('.custom-pack-update-btn');
             if (!btn) return;
@@ -2049,16 +2345,22 @@
         });
 
         window.launcherAPI.onLog((log) => {
+            pushLauncherLog(log);
             statusText.innerText = log;
             if (microsoftLoginInProgress && /microsoft|connexion|code|oauth|xbox/i.test(String(log))) {
                 setAuthStatus(String(log), '#fca311');
             }
+            updateCrashReportHint();
         });
 
         window.launcherAPI.onModsInstalled((data) => {
             if (!data || !data.installed || !data.installed.length) return;
             modStatus.innerText = `Mods installés : ${data.installed.map(m => m.name).join(', ')}`;
+            updateCrashReportHint();
         });
+
+        refreshLauncherProfiles();
+        updateCrashReportHint();
     </script>
 </body>
 </html>
