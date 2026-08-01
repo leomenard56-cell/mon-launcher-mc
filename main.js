@@ -30,6 +30,7 @@ const launcherProfilesFilePath = path.join(launcherDataPath, 'launcher_profiles.
 const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
 const launcherBackupsPath = path.join(launcherDataPath, 'backups');
 const ownerCurseForgeKeyPath = path.join(__dirname, 'owner_curseforge_key.txt');
+const OWNER_CURSEFORGE_KEY_BUILTIN = '$2a$10$/9zkN4Dmpf9Hbwey/CKqXubYIMLbW5XT7V0D/k29lDTx9MQe4S8x2';
 const ELY_AUTH_BASE = 'https://authserver.ely.by';
 const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
 const DEFAULT_GITHUB_MODS_REPO = 'leomenard56-cell/mon-launcher-mc';
@@ -302,6 +303,10 @@ function analyzeLauncherIntegrity(mods) {
 }
 
 function getCurseForgeApiKey() {
+    // Cle builtin (hardcodee pour fiabilite dans app packagee)
+    if (OWNER_CURSEFORGE_KEY_BUILTIN && OWNER_CURSEFORGE_KEY_BUILTIN !== 'PASTE_OWNER_CURSEFORGE_API_KEY_HERE') {
+        return { key: OWNER_CURSEFORGE_KEY_BUILTIN, source: 'owner-file' };
+    }
     if (fs.existsSync(ownerCurseForgeKeyPath)) {
         const ownerKey = String(fs.readFileSync(ownerCurseForgeKeyPath, 'utf-8') || '').trim();
         if (ownerKey && ownerKey !== 'PASTE_OWNER_CURSEFORGE_API_KEY_HERE') {
