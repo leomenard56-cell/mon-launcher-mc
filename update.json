@@ -1,5 +1,5 @@
 {
-  "version": "1.0.34",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.34/KuroVerse-Setup-1.0.34.exe",
-  "notes": "Mise à jour clé API CurseForge Core (API officielle). CurseForge fonctionne correctement."
+  "version": "1.0.35",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.35/KuroVerse-Setup-1.0.35.exe",
+  "notes": "Clé API CurseForge mise à jour et validée. CurseForge Explorer fonctionne correctement."
 }
