@@ -1,5 +1,5 @@
 {
-  "version": "1.0.31",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.31/KuroVerse-Setup-1.0.31.exe",
-  "notes": "Ajout des profils de lancement, sauvegardes automatiques avant import/sync, vérification d'intégrité, rapport de crash et téléchargements résumables."
+  "version": "1.0.32",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.32/KuroVerse-Setup-1.0.32.exe",
+  "notes": "Fix erreur 403 CurseForge: les mods avec distribution désactivée affichent maintenant un bouton Télécharger manuellement au lieu d'une erreur."
 }

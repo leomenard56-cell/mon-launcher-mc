@@ -339,14 +339,44 @@ function getSafeFileNameFromUrl(downloadUrl, fallback) {
     return fallback;
 }
 
+class CurseForgeDistributionError extends Error {
+    constructor(projectId, fileId, websiteUrl) {
+        super(`Ce mod (${projectId}) a désactivé la distribution tierce. Télécharge-le manuellement sur CurseForge.`);
+        this.name = 'CurseForgeDistributionError';
+        this.projectId = projectId;
+        this.fileId = fileId;
+        this.websiteUrl = websiteUrl || `https://www.curseforge.com/minecraft/mc-mods/${projectId}`;
+    }
+}
+
 async function downloadCurseForgeModFile(projectId, fileId, apiKey, onProgress) {
     const headers = { 'x-api-key': apiKey, Accept: 'application/json' };
-    const urlResp = await axios.get(`https://api.curseforge.com/v1/mods/${projectId}/files/${fileId}/download-url`, {
-        headers,
-        timeout: 20000
-    });
+    let urlResp;
+    try {
+        urlResp = await axios.get(`https://api.curseforge.com/v1/mods/${projectId}/files/${fileId}/download-url`, {
+            headers,
+            timeout: 20000
+        });
+    } catch (urlErr) {
+        const status = urlErr && urlErr.response ? Number(urlErr.response.status) : 0;
+        if (status === 403) {
+            let websiteUrl = `https://www.curseforge.com/minecraft/mc-mods/${projectId}`;
+            try {
+                const modInfo = await axios.get(`https://api.curseforge.com/v1/mods/${projectId}`, { headers, timeout: 10000 });
+                const slug = modInfo && modInfo.data && modInfo.data.data && modInfo.data.data.slug ? modInfo.data.data.slug : null;
+                const links = modInfo && modInfo.data && modInfo.data.data && modInfo.data.data.links ? modInfo.data.data.links : null;
+                if (links && links.websiteUrl) websiteUrl = links.websiteUrl;
+                else if (slug) websiteUrl = `https://www.curseforge.com/minecraft/mc-mods/${slug}`;
+            } catch (_) { }
+            throw new CurseForgeDistributionError(projectId, fileId, websiteUrl);
+        }
+        throw urlErr;
+    }
     const downloadUrl = urlResp && urlResp.data && urlResp.data.data ? String(urlResp.data.data) : null;
-    if (!downloadUrl) throw new Error(`URL introuvable pour mod ${projectId}/${fileId}`);
+    if (!downloadUrl) {
+        let websiteUrl = `https://www.curseforge.com/minecraft/mc-mods/${projectId}`;
+        throw new CurseForgeDistributionError(projectId, fileId, websiteUrl);
+    }
 
     ensureDirectory(modsFolderPath);
     const fallbackName = `curseforge-${projectId}-${fileId}.jar`;
@@ -2146,18 +2176,33 @@ ipcMain.handle('curseforge-install-latest', async (event, payload = {}) => {
             };
         }
 
-        const downloaded = await downloadCurseForgeModFile(projectId, fileId, apiKey, (progress) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('launcher-download-status', {
-                    current: progress.current,
-                    total: progress.total,
-                    files: 1,
-                    name: `curseforge-${projectId}-${fileId}`,
-                    resumedBytes: progress.resumedBytes || 0,
-                    resume: !!progress.resume
-                });
+        let downloaded;
+        try {
+            downloaded = await downloadCurseForgeModFile(projectId, fileId, apiKey, (progress) => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('launcher-download-status', {
+                        current: progress.current,
+                        total: progress.total,
+                        files: 1,
+                        name: `curseforge-${projectId}-${fileId}`,
+                        resumedBytes: progress.resumedBytes || 0,
+                        resume: !!progress.resume
+                    });
+                }
+            });
+        } catch (dlErr) {
+            if (dlErr && dlErr.name === 'CurseForgeDistributionError') {
+                return {
+                    success: false,
+                    distributionDisabled: true,
+                    projectId,
+                    fileId,
+                    websiteUrl: dlErr.websiteUrl,
+                    error: dlErr.message
+                };
             }
-        });
+            throw dlErr;
+        }
         mainWindow.webContents.send('mods-installed', { installed: listInstalledModFiles(), folder: modsFolderPath });
         return {
             success: true,
