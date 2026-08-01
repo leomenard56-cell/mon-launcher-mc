@@ -1,5 +1,5 @@
 {
-  "version": "1.0.33",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.33/KuroVerse-Setup-1.0.33.exe",
-  "notes": "CurseForge: retrait de la gestion 403 personnalisée, comportement standard restauré."
+  "version": "1.0.34",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.34/KuroVerse-Setup-1.0.34.exe",
+  "notes": "Mise à jour de la clé API CurseForge intégrée."
 }
