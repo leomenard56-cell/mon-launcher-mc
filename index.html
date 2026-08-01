@@ -375,7 +375,8 @@
             </div>
             <div class="panel-card">
                 <div class="mods-list">
-                    <div class="mod-item"><h4>v1.0.32</h4><p>Fix erreur 403 CurseForge: les mods avec distribution désactivée par l'auteur affichent maintenant un bouton "Télécharger manuellement" vers la page CurseForge.</p></div>
+                    <div class="mod-item"><h4>v1.0.33</h4><p>CurseForge: retrait de la gestion 403 personnalisée, comportement standard restauré.</p></div>
+                    <div class="mod-item"><h4>v1.0.32</h4><p>Fix erreur 403 CurseForge: les mods avec distribution désactivée affichent un bouton Télécharger manuellement.</p></div>
                     <div class="mod-item"><h4>v1.0.31</h4><p>Ajout des profils de lancement, sauvegardes automatiques avant import/sync, vérification d'intégrité, rapport de crash et téléchargements résumables.</p></div>
                     <div class="mod-item"><h4>v1.0.30</h4><p>Fix crash export pack: création ZIP réécrite sans PowerShell pour stabiliser "Créer un pack local" et "Créer le pack" (Mods Pack Personnaliser).</p></div>
                     <div class="mod-item"><h4>v1.0.29</h4><p>Mods Pack Personnaliser: ajout du lien GitHub du dossier mods + bouton 1 clic pour télécharger tous les mods depuis le dépôt.</p></div>
@@ -1823,18 +1824,7 @@
             installBtn.disabled = false;
             installBtn.innerText = 'Installer latest';
             if (!result || !result.success) {
-                if (result && result.distributionDisabled && result.websiteUrl) {
-                    cfInfo.innerHTML = `⛔ Ce mod a désactivé le téléchargement direct. <a href="#" id="cfManualDlLink" style="color:#ff5500;">Télécharger manuellement sur CurseForge</a>`;
-                    const manualLink = document.getElementById('cfManualDlLink');
-                    if (manualLink) {
-                        manualLink.addEventListener('click', (evt) => {
-                            evt.preventDefault();
-                            if (window.launcherAPIOpen && window.launcherAPIOpen.openExternal) window.launcherAPIOpen.openExternal(result.websiteUrl);
-                        });
-                    }
-                } else {
-                    cfInfo.innerText = 'Installation échouée: ' + (result && result.error ? result.error : 'échec inconnu');
-                }
+                cfInfo.innerText = 'Installation échouée: ' + (result && result.error ? result.error : 'échec inconnu');
                 return;
             }
 
@@ -1865,18 +1855,7 @@
             installBtn.innerText = 'Installer';
 
             if (!result || !result.success) {
-                if (result && result.distributionDisabled && result.websiteUrl) {
-                    cfFilesInfo.innerHTML = `⛔ Distribution désactivée par l'auteur. <a href="#" id="cfManualDlLinkOverlay" style="color:#ff5500;">Télécharger manuellement</a>`;
-                    const manualLinkOverlay = document.getElementById('cfManualDlLinkOverlay');
-                    if (manualLinkOverlay) {
-                        manualLinkOverlay.addEventListener('click', (evt) => {
-                            evt.preventDefault();
-                            if (window.launcherAPIOpen && window.launcherAPIOpen.openExternal) window.launcherAPIOpen.openExternal(result.websiteUrl);
-                        });
-                    }
-                } else {
-                    cfInfo.innerText = 'Installation échouée: ' + (result && result.error ? result.error : 'échec inconnu');
-                }
+                cfInfo.innerText = 'Installation échouée: ' + (result && result.error ? result.error : 'échec inconnu');
                 return;
             }
 
