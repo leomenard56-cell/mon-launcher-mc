@@ -30,17 +30,39 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     fetchImageDataUrl: (payload) => ipcRenderer.invoke('fetch-image-data-url', payload),
     saveLauncherSkin: (payload) => ipcRenderer.invoke('save-launcher-skin', payload),
     getLauncherSkin: () => ipcRenderer.invoke('get-launcher-skin'),
-    
+
     // Fonctions de connexion
     setAuthData: (data) => ipcRenderer.invoke('set-auth', data),
     loginEly: (payload) => ipcRenderer.invoke('login-ely', payload),
     loginMicrosoft: () => ipcRenderer.send('login-microsoft'),
+    loginDiscord: () => ipcRenderer.send('login-discord'),
     logout: () => ipcRenderer.invoke('logout'), // Ajouté pour le bouton déconnexion
-    
+    getAuthState: () => ipcRenderer.invoke('get-auth-state'),
+    getActiveAuths: () => ipcRenderer.invoke('get-active-auths'), // Récupère tous les auths actifs avec détails
+
+    // NEW: JVM Settings handlers (improvement #2)
+    getJVMSettings: () => ipcRenderer.invoke('get-jvm-settings'),
+    saveJVMSettings: (settings) => ipcRenderer.invoke('save-jvm-settings', settings),
+
+    // NEW: Action History handlers (improvement #3)
+    getActionHistory: () => ipcRenderer.invoke('get-action-history'),
+    clearActionHistory: () => ipcRenderer.invoke('clear-action-history'),
+
+    // NEW: Minecraft Profiles handlers (improvement #5)
+    getMinecraftProfiles: () => ipcRenderer.invoke('get-minecraft-profiles'),
+    saveMinecraftProfile: (profile) => ipcRenderer.invoke('save-minecraft-profile', profile),
+    deleteMinecraftProfile: (id) => ipcRenderer.invoke('delete-minecraft-profile', id),
+    selectMinecraftProfile: (id) => ipcRenderer.invoke('select-minecraft-profile', id),
+
+    // NEW: System stats handlers (improvement #8 - Performance Monitor)
+    getSystemStats: () => ipcRenderer.invoke('get-system-stats'),
+
     // Écouteurs pour le HTML
     onMicrosoftSuccess: (callback) => ipcRenderer.on('microsoft-success', (event, profile) => callback(profile)),
     onMicrosoftFailed: (callback) => ipcRenderer.on('microsoft-failed', (event, ...args) => callback(...args)), // Ajouté pour débloquer le bouton en cas d'erreur
-    onProgress: (callback) => ipcRenderer.on('launcher-progress', (event, data) => callback(data)),
+    onDiscordSuccess: (callback) => ipcRenderer.on('discord-success', (event, profile) => callback(profile)),
+    onDiscordFailed: (callback) => ipcRenderer.on('discord-failed', (event, error) => callback(error)),
+    onActiveAuthsUpdated: (callback) => ipcRenderer.on('update-active-auths', (event, authTypes) => callback(authTypes)),
     onDownloadStatus: (callback) => ipcRenderer.on('launcher-download-status', (event, data) => callback(data)),
     onLog: (callback) => ipcRenderer.on('launcher-log', (event, log) => callback(log)),
     onMicrosoftDevice: (callback) => ipcRenderer.on('microsoft-device', (event, data) => callback(data)),

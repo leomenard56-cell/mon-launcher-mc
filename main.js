@@ -3,17 +3,19 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const os = require('os');
+const http = require('http');
 const { spawn, spawnSync } = require('child_process');
 const axios = require('axios');
 const unzipper = require('unzipper');
 const archiver = require('archiver');
 const { Client, Authenticator } = require('minecraft-launcher-core');
-const { Auth } = require('msmc'); 
+const { Auth } = require('msmc');
 
 const launcher = new Client();
 let mainWindow;
-let userAuth = null; 
+let userAuth = null;
 let currentAuthType = null;
+let activeAuths = {}; // { microsoft: {...}, discord: {...}, ely: {...}, crack: {...} }
 let loginInProgress = false;
 let gameLaunchInProgress = false;
 const launcherDataPath = path.join(app.getPath('userData'), '.mon-launcher');
@@ -29,10 +31,15 @@ const launcherSettingsFilePath = path.join(launcherDataPath, 'launcher_settings.
 const launcherProfilesFilePath = path.join(launcherDataPath, 'launcher_profiles.json');
 const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
 const launcherBackupsPath = path.join(launcherDataPath, 'backups');
+const jvmSettingsFilePath = path.join(launcherDataPath, 'jvm_settings.json');
+const actionHistoryFilePath = path.join(launcherDataPath, 'action_history.json');
 const ownerCurseForgeKeyPath = path.join(__dirname, 'owner_curseforge_key.txt');
 const OWNER_CURSEFORGE_KEY_BUILTIN = '$2a$10$/9zkN4Dmpf9Hbwey/CKqXubYIMLbW5XT7V0D/k29lDTx9MQe4S8x2';
 const ELY_AUTH_BASE = 'https://authserver.ely.by';
-const UPDATE_URL_PLACEHOLDER = 'https://PASTE_PUBLIC_UPDATE_JSON_URL_HERE';
+const DISCORD_CLIENT_ID = '1537030799596064768';
+const DISCORD_CLIENT_SECRET = 'Y2uENQsFVEd7g91O7cDxGfDs5tMX6wDp';
+const DISCORD_REDIRECT_URI = 'http://localhost:35555/discord-callback';
+const DISCORD_API_BASE = 'https://discord.com/api/oauth2';
 const DEFAULT_GITHUB_MODS_REPO = 'leomenard56-cell/mon-launcher-mc';
 const DEFAULT_GITHUB_MODS_BRANCH = 'main';
 const DEFAULT_GITHUB_MODS_PATH = 'mods';
@@ -81,6 +88,59 @@ function writeLauncherSettings(rawSettings) {
     ensureLauncherDataDirectories();
     fs.writeFileSync(launcherSettingsFilePath, JSON.stringify(normalized, null, 2), 'utf-8');
     return normalized;
+}
+
+/* ===== JVM SETTINGS MANAGEMENT ===== */
+function readJVMSettings() {
+    ensureLauncherDataDirectories();
+    if (!fs.existsSync(jvmSettingsFilePath)) {
+        return { minRam: 2, maxRam: 8, args: '-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions' };
+    }
+    try {
+        return JSON.parse(fs.readFileSync(jvmSettingsFilePath, 'utf-8'));
+    } catch (_) {
+        return { minRam: 2, maxRam: 8, args: '' };
+    }
+}
+
+function writeJVMSettings(settings) {
+    ensureLauncherDataDirectories();
+    fs.writeFileSync(jvmSettingsFilePath, JSON.stringify(settings, null, 2), 'utf-8');
+    return settings;
+}
+
+function buildJVMArguments() {
+    const jvm = readJVMSettings();
+    let args = [];
+    if (jvm.minRam) args.push(`-Xms${jvm.minRam}G`);
+    if (jvm.maxRam) args.push(`-Xmx${jvm.maxRam}G`);
+    if (jvm.args) args.push(jvm.args);
+    return args;
+}
+
+/* ===== ACTION HISTORY/LOGGING ===== */
+function getActionHistory() {
+    ensureLauncherDataDirectories();
+    if (!fs.existsSync(actionHistoryFilePath)) return [];
+    try {
+        return JSON.parse(fs.readFileSync(actionHistoryFilePath, 'utf-8'));
+    } catch (_) {
+        return [];
+    }
+}
+
+function pushActionHistory(action, type = 'info', details = '') {
+    ensureLauncherDataDirectories();
+    let history = getActionHistory();
+    history.unshift({
+        timestamp: new Date().toISOString(),
+        action,
+        type,
+        details
+    });
+    if (history.length > 500) history.pop();
+    fs.writeFileSync(actionHistoryFilePath, JSON.stringify(history, null, 2), 'utf-8');
+    console.log(`[HISTORY] [${type.toUpperCase()}] ${action}`, details);
 }
 
 function copyDirectoryContents(sourceDir, destinationDir) {
@@ -571,7 +631,7 @@ function createWindow() {
             nodeIntegration: false
         }
     });
-    mainWindow.setMenuBarVisibility(false); 
+    mainWindow.setMenuBarVisibility(false);
     mainWindow.loadFile('index.html');
 
     mainWindow.webContents.on('did-finish-load', async () => {
@@ -582,6 +642,10 @@ function createWindow() {
             }
             const restoredAuth = await restoreSavedAuthProfile();
             if (restoredAuth) {
+                // Envoyer update-active-auths avec la liste des auths restaurés
+                const activeAuthTypes = Object.keys(activeAuths);
+                mainWindow.webContents.send('update-active-auths', activeAuthTypes);
+                // Pour backward compatibility, envoyer aussi microsoft-success
                 mainWindow.webContents.send('microsoft-success', restoredAuth);
             }
         } catch (err) { console.log("Auto-auth impossible : " + err); }
@@ -590,71 +654,206 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-async function restoreSavedAuthProfile() {
-    if (!fs.existsSync(authFilePath)) return null;
-    const savedData = JSON.parse(fs.readFileSync(authFilePath, 'utf-8'));
+// Serveur HTTP pour Discord OAuth callback
+const discordCallbackServer = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://localhost:35555');
 
-    if (savedData.type === 'crack') {
-        const offlinePseudo = String(savedData.pseudo || '').trim();
-        if (!offlinePseudo) return null;
-        userAuth = Authenticator.getAuth(offlinePseudo);
-        const displayName = (userAuth && userAuth.name ? String(userAuth.name).trim() : '') || offlinePseudo || 'Joueur';
-        currentAuthType = 'crack';
-        return { name: displayName, type: 'crack' };
+    if (url.pathname === '/discord-callback') {
+        const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+
+        if (error) {
+            console.log('[Discord Callback] Erreur: ' + error);
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end('<html><body style="background: #16161a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh;"><div style="text-align: center;"><h1>❌ Erreur Discord</h1><p>' + error + '</p><p style="color: #888;">Ferme cette fenêtre et réessaye.</p></div></body></html>');
+            if (mainWindow) mainWindow.webContents.send('discord-failed', error || 'Erreur authentification');
+            return;
+        }
+
+        if (code) {
+            console.log('[Discord Callback] Code reçu: ' + code);
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end('<html><body style="background: #16161a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh;"><div style="text-align: center;"><h1>✅ Connexion réussie!</h1><p>Tu peux fermer cette fenêtre.</p></div></body></html>');
+
+            // Échanger le code contre un token Discord
+            exchangeDiscordCode(code);
+        } else {
+            res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end('<html><body style="background: #16161a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh;"><div style="text-align: center;"><h1>❌ Code manquant</h1><p>Impossible de recevoir le code Discord.</p></div></body></html>');
+        }
+    } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
     }
+});
 
-    if (savedData.type === 'microsoft' && savedData.token) {
-        const authManager = new Auth("select_account");
-        const xboxManager = await authManager.refresh(savedData.token);
-        const token = await xboxManager.getMinecraft();
-        userAuth = token.mclc();
-        fs.writeFileSync(authFilePath, JSON.stringify({ type: 'microsoft', token: xboxManager.save() }), 'utf-8');
-        currentAuthType = 'microsoft';
-        return { name: userAuth.name, type: 'microsoft' };
-    }
+discordCallbackServer.listen(35555, 'localhost', () => {
+    console.log('[Discord Server] Callback server lancé sur http://localhost:35555');
+});
 
-    if (savedData.type === 'ely' && savedData.accessToken && savedData.clientToken) {
-        const refreshResponse = await axios.post(
-            `${ELY_AUTH_BASE}/auth/refresh`,
+async function exchangeDiscordCode(code) {
+    try {
+        console.log('[Discord] Échange du code contre token...');
+
+        const tokenResponse = await axios.post(`${DISCORD_API_BASE}/token`,
+            new URLSearchParams({
+                client_id: DISCORD_CLIENT_ID,
+                client_secret: DISCORD_CLIENT_SECRET,
+                code: code,
+                grant_type: 'authorization_code',
+                redirect_uri: DISCORD_REDIRECT_URI
+            }).toString(),
             {
-                accessToken: savedData.accessToken,
-                clientToken: savedData.clientToken,
-                requestUser: true
-            },
-            { timeout: 20000 }
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            }
         );
 
-        const body = refreshResponse && refreshResponse.data ? refreshResponse.data : {};
-        const selectedProfile = body.selectedProfile || {};
-        const profileId = String(selectedProfile.id || '').replace(/-/g, '').trim();
-        const profileName = String(selectedProfile.name || '').trim();
-        const accessToken = String(body.accessToken || '').trim();
-        const clientToken = String(body.clientToken || savedData.clientToken || '').trim();
+        const accessToken = tokenResponse.data.access_token;
+        console.log('[Discord] Token obtenu');
 
-        if (!profileId || !profileName || !accessToken || !clientToken) return null;
+        // Récupérer le profil utilisateur
+        const userResponse = await axios.get('https://discord.com/api/users/@me', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
 
-        userAuth = {
-            access_token: accessToken,
-            client_token: clientToken,
-            uuid: profileId,
-            name: profileName,
-            user_properties: []
+        const discordUser = userResponse.data;
+        const displayName = discordUser.username || discordUser.global_name || 'DiscordUser';
+        const userId = discordUser.id;
+        const avatarHash = discordUser.avatar;
+
+        // Construire l'URL de l'avatar Discord
+        let avatarUrl = null;
+        if (avatarHash) {
+            const format = avatarHash.startsWith('a_') ? 'gif' : 'png';
+            avatarUrl = `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.${format}?size=256`;
+        } else {
+            // Avatar par défaut Discord
+            const discriminator = discordUser.discriminator || '0000';
+            avatarUrl = `https://cdn.discordapp.com/embed/avatars/${parseInt(discriminator) % 5}.png`;
+        }
+
+        console.log('[Discord] Utilisateur: ' + displayName);
+
+        // AJOUTER Discord aux auths actives (sans supprimer les autres!)
+        activeAuths.discord = {
+            name: displayName,
+            type: 'discord',
+            accessToken: accessToken,
+            avatarUrl: avatarUrl,
+            userId: userId,
+            status: 'online' // Statut par défaut quand connecté via OAuth
         };
-        currentAuthType = 'ely';
 
-        fs.writeFileSync(authFilePath, JSON.stringify({
-            type: 'ely',
-            accessToken,
-            clientToken,
-            profileId,
-            profileName
-        }), 'utf-8');
+        // Sauvegarder TOUS les auths actifs
+        if (!fs.existsSync(path.dirname(authFilePath))) {
+            fs.mkdirSync(path.dirname(authFilePath), { recursive: true });
+        }
+        fs.writeFileSync(authFilePath, JSON.stringify(activeAuths), 'utf-8');
 
-        return { name: profileName, type: 'ely' };
+        // Envoyer le succès au renderer avec avatar ET statut
+        if (mainWindow) {
+            mainWindow.webContents.send('discord-success', {
+                name: displayName,
+                type: 'discord',
+                avatarUrl: avatarUrl,
+                status: 'online'
+            });
+            // Envoyer TOUS les auths actifs
+            mainWindow.webContents.send('update-active-auths', Object.keys(activeAuths));
+
+            // Log action (improvement #3: Action History)
+            pushActionHistory(`Connexion Discord réussie: ${displayName}`, 'success', `User ID: ${userId}`);
+        }
+    } catch (err) {
+        console.error('[Discord] Erreur échange token:', err.message);
+        if (mainWindow) mainWindow.webContents.send('discord-failed', err.message || 'Erreur échange token');
+
+        // Log action (improvement #3: Action History)
+        pushActionHistory('Connexion Discord échouée', 'error', err.message || 'Unknown error');
     }
+}
 
-    currentAuthType = null;
-    return null;
+async function restoreSavedAuthProfile() {
+    if (!fs.existsSync(authFilePath)) return null;
+
+    try {
+        const savedData = JSON.parse(fs.readFileSync(authFilePath, 'utf-8'));
+
+        // Nouveau format: activeAuths = { crack: {...}, microsoft: {...}, discord: {...} }
+        if (savedData.crack || savedData.microsoft || savedData.ely || savedData.discord) {
+            activeAuths = savedData;
+            // Retourner le premier auth actif
+            const firstAuthType = Object.keys(activeAuths)[0];
+            if (firstAuthType) {
+                return { name: activeAuths[firstAuthType].name, type: firstAuthType };
+            }
+            return null;
+        }
+
+        // Ancien format: { type: 'crack', pseudo: '...' }
+        // Convertir au nouveau format
+        if (savedData.type === 'crack') {
+            const offlinePseudo = String(savedData.pseudo || '').trim();
+            if (!offlinePseudo) return null;
+            userAuth = Authenticator.getAuth(offlinePseudo);
+            const displayName = (userAuth && userAuth.name ? String(userAuth.name).trim() : '') || offlinePseudo || 'Joueur';
+            currentAuthType = 'crack';
+            activeAuths.crack = { name: displayName, type: 'crack', pseudo: offlinePseudo };
+            return { name: displayName, type: 'crack' };
+        }
+
+        if (savedData.type === 'microsoft' && savedData.token) {
+            const authManager = new Auth("select_account");
+            const xboxManager = await authManager.refresh(savedData.token);
+            const token = await xboxManager.getMinecraft();
+            userAuth = token.mclc();
+            currentAuthType = 'microsoft';
+            activeAuths.microsoft = { name: userAuth.name, type: 'microsoft', token: xboxManager.save() };
+            return { name: userAuth.name, type: 'microsoft' };
+        }
+
+        if (savedData.type === 'ely' && savedData.accessToken && savedData.clientToken) {
+            const refreshResponse = await axios.post(
+                `${ELY_AUTH_BASE}/auth/refresh`,
+                {
+                    accessToken: savedData.accessToken,
+                    clientToken: savedData.clientToken,
+                    requestUser: true
+                },
+                { timeout: 20000 }
+            );
+
+            const body = refreshResponse && refreshResponse.data ? refreshResponse.data : {};
+            const selectedProfile = body.selectedProfile || {};
+            const profileId = String(selectedProfile.id || '').replace(/-/g, '').trim();
+            const profileName = String(selectedProfile.name || '').trim();
+            const accessToken = String(body.accessToken || '').trim();
+            const clientToken = String(body.clientToken || savedData.clientToken || '').trim();
+
+            if (!profileId || !profileName || !accessToken || !clientToken) return null;
+
+            userAuth = {
+                access_token: accessToken,
+                client_token: clientToken,
+                uuid: profileId,
+                name: profileName,
+                user_properties: []
+            };
+            currentAuthType = 'ely';
+            activeAuths.ely = { name: profileName, type: 'ely', accessToken, clientToken, profileId, profileName };
+
+            // Log action (improvement #3: Action History)
+            pushActionHistory(`Connexion Ely.by réussie: ${profileName}`, 'success', `Profile ID: ${profileId}`);
+
+            return { name: profileName, type: 'ely' };
+        }
+
+        currentAuthType = null;
+        return null;
+    } catch (err) {
+        console.error('[Auth] Erreur restauration:', err);
+        return null;
+    }
 }
 
 function buildClientToken() {
@@ -811,7 +1010,7 @@ async function downloadJavaExecutable() {
     response.data.pipe(writer);
     await new Promise((resolve, reject) => { writer.on('finish', resolve); writer.on('error', reject); });
     await fs.createReadStream(zipPath).pipe(unzipper.Extract({ path: javaDir })).promise();
-    fs.unlinkSync(zipPath); 
+    fs.unlinkSync(zipPath);
     const subDirs = fs.readdirSync(javaDir);
     const extractedFolder = path.join(javaDir, subDirs[0]);
     fs.cpSync(extractedFolder, javaDir, { recursive: true });
@@ -822,7 +1021,7 @@ async function downloadJavaExecutable() {
 async function downloadNeoForgeInstaller() {
     const forgeDir = launcherDataPath;
     const forgePath = path.join(forgeDir, 'neoforge-installer.jar');
-    if (fs.existsSync(forgePath)) return forgePath; 
+    if (fs.existsSync(forgePath)) return forgePath;
     if (!fs.existsSync(forgeDir)) fs.mkdirSync(forgeDir, { recursive: true });
     const url = "https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.233/neoforge-21.1.233-installer.jar";
     const writer = fs.createWriteStream(forgePath);
@@ -1391,8 +1590,18 @@ ipcMain.handle('set-auth', async (event, data) => {
         }
         userAuth = Authenticator.getAuth(offlinePseudo);
         currentAuthType = 'crack';
+
+        // AJOUTER Crack aux auths actives (sans supprimer les autres!)
+        activeAuths.crack = { name: userAuth.name, type: 'crack', pseudo: offlinePseudo };
+
         if (!fs.existsSync(path.dirname(authFilePath))) fs.mkdirSync(path.dirname(authFilePath), { recursive: true });
-        fs.writeFileSync(authFilePath, JSON.stringify({ type: 'crack', pseudo: offlinePseudo }), 'utf-8');
+        fs.writeFileSync(authFilePath, JSON.stringify(activeAuths), 'utf-8');
+
+        // Envoyer la mise à jour au renderer
+        if (mainWindow) {
+            mainWindow.webContents.send('update-active-auths', Object.keys(activeAuths));
+        }
+
         return { success: true };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
@@ -1441,13 +1650,23 @@ ipcMain.handle('login-ely', async (event, payload = {}) => {
         currentAuthType = 'ely';
 
         ensureLauncherDataDirectories();
-        fs.writeFileSync(authFilePath, JSON.stringify({
+
+        // AJOUTER Ely aux auths actives
+        activeAuths.ely = {
             type: 'ely',
             accessToken,
             clientToken: resolvedClientToken,
             profileId,
-            profileName
-        }), 'utf-8');
+            profileName,
+            name: profileName
+        };
+
+        fs.writeFileSync(authFilePath, JSON.stringify(activeAuths), 'utf-8');
+
+        // Envoyer les updates au renderer
+        if (mainWindow) {
+            mainWindow.webContents.send('update-active-auths', Object.keys(activeAuths));
+        }
 
         return { success: true, profile: { name: profileName, type: 'ely' } };
     } catch (err) {
@@ -1504,10 +1723,19 @@ ipcMain.on('login-microsoft', async (event) => {
             if (!userAuth || !userAuth.name) {
                 throw new Error('Impossible de récupérer le profil Microsoft après connexion.');
             }
+
+            // AJOUTER Microsoft aux auths actives
+            activeAuths.microsoft = { name: userAuth.name, type: 'microsoft', token: xboxManager.save ? xboxManager.save() : null };
+
             if (!fs.existsSync(path.dirname(authFilePath))) fs.mkdirSync(path.dirname(authFilePath), { recursive: true });
-            fs.writeFileSync(authFilePath, JSON.stringify({ type: 'microsoft', token: xboxManager.save ? xboxManager.save() : null }), 'utf-8');
+            fs.writeFileSync(authFilePath, JSON.stringify(activeAuths), 'utf-8');
             mainWindow.webContents.send('launcher-log', 'Connexion Microsoft réussie pour: ' + userAuth.name);
             mainWindow.webContents.send('microsoft-success', { name: userAuth.name, type: 'microsoft' });
+            // Envoyer la mise à jour au renderer
+            mainWindow.webContents.send('update-active-auths', Object.keys(activeAuths));
+
+            // Log action (improvement #3: Action History)
+            pushActionHistory(`Connexion Microsoft réussie: ${userAuth.name}`, 'success', 'Profil Minecraft authentifié');
         });
     };
 
@@ -1610,12 +1838,98 @@ ipcMain.on('login-microsoft', async (event) => {
     }
 });
 
+ipcMain.on('logout', async (event) => {
+    try {
+        const previousAuth = userAuth ? userAuth.name : 'Inconnu';
+        userAuth = null;
+        currentAuthType = null;
+        activeAuths = {}; // Clear all active auths
+        if (fs.existsSync(authFilePath)) fs.unlinkSync(authFilePath);
+        if (mainWindow) mainWindow.webContents.send('launcher-log', 'Déconnexion réussie');
+
+        // Log action (improvement #3: Action History)
+        pushActionHistory(`Déconnexion réussie: ${previousAuth}`, 'info', 'Compte enlevé');
+    } catch (err) {
+        if (mainWindow) mainWindow.webContents.send('launcher-log', 'Erreur déconnexion: ' + err.message);
+
+        // Log action (improvement #3: Action History)
+        pushActionHistory('Erreur lors de la déconnexion', 'error', err.message);
+    }
+});
+
 ipcMain.handle('logout', async () => {
     try {
         userAuth = null;
         currentAuthType = null;
+        activeAuths = {}; // Supprimer TOUS les auths
         if (fs.existsSync(authFilePath)) fs.unlinkSync(authFilePath);
+        // Notifier le renderer
+        if (mainWindow) {
+            mainWindow.webContents.send('update-active-auths', []);
+        }
         return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+});
+
+ipcMain.on('login-discord', async (event) => {
+    console.log('[IPC] login-discord reçu');
+    try {
+        // Construire l'URL OAuth Discord
+        const discordAuthUrl = `${DISCORD_API_BASE}/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(DISCORD_REDIRECT_URI)}&response_type=code&scope=identify%20email`;
+
+        console.log('[Discord OAuth] Ouverture du navigateur...');
+        await shell.openExternal(discordAuthUrl);
+
+        // Afficher un message au launcher
+        mainWindow.webContents.send('launcher-log', 'Veuillez autoriser le launcher sur Discord...');
+
+    } catch (err) {
+        console.error('[IPC] Erreur Discord:', err);
+        mainWindow.webContents.send('discord-failed', err.message || 'Erreur connexion Discord');
+    }
+});
+
+// Simulation d'une connexion Discord réussie (car on n'a pas de serveur callback)
+// TODO: Mettre en place un vrai serveur localhost pour récupérer le code
+ipcMain.on('simulate-discord-success', async (event, username) => {
+    try {
+        userAuth = { name: username || 'DiscordUser', type: 'discord' };
+        currentAuthType = 'discord';
+
+        if (!fs.existsSync(path.dirname(authFilePath))) {
+            fs.mkdirSync(path.dirname(authFilePath), { recursive: true });
+        }
+        fs.writeFileSync(authFilePath, JSON.stringify({ type: 'discord', username: userAuth.name }), 'utf-8');
+
+        console.log('[IPC] Discord connecté: ' + userAuth.name);
+        mainWindow.webContents.send('discord-success', { name: userAuth.name, type: 'discord' });
+    } catch (err) {
+        console.error('[IPC] Erreur Discord:', err);
+        mainWindow.webContents.send('discord-failed', err.message || 'Erreur connexion Discord');
+    }
+});
+
+ipcMain.handle('get-auth-state', async () => {
+    try {
+        if (!userAuth || !currentAuthType) {
+            return { success: true, profile: null };
+        }
+        const profile = {
+            name: userAuth.name || 'Utilisateur',
+            type: currentAuthType
+        };
+        return { success: true, profile };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+});
+
+ipcMain.handle('get-active-auths', async () => {
+    try {
+        // Retourner tous les auths actifs avec leurs détails
+        return { success: true, auths: activeAuths };
     } catch (err) {
         return { success: false, error: err.message || String(err) };
     }
@@ -2398,27 +2712,38 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
 
     try {
         const launcherSettings = readLauncherSettings();
-        const memoryMaxGb = launcherSettings.minecraftRamGb;
-        const memoryMinGb = Math.max(1, Math.min(memoryMaxGb - 1, Math.floor(memoryMaxGb / 2)));
+
+        // Integrate JVM settings from improvement #2
+        const jvmSettings = readJVMSettings();
+        const memoryMaxGb = jvmSettings.maxRam || launcherSettings.minecraftRamGb;
+        const memoryMinGb = jvmSettings.minRam || Math.max(1, Math.min(memoryMaxGb - 1, Math.floor(memoryMaxGb / 2)));
+
         const baseOpts = {
             clientPackage: null,
             authorization: userAuth,
             root: launcherDataPath,
             version: { number: "1.21.1", type: "release" },
             javaPath: javaPath,
-            memory: { max: `${memoryMaxGb}G`, min: `${memoryMinGb}G` }
+            memory: { max: `${memoryMaxGb}G`, min: `${memoryMinGb}G` },
+            jvmArguments: buildJVMArguments() // Add custom JVM args from improvement #2
         };
 
         if (currentAuthType === 'ely') {
             try {
                 const injectorJar = await resolveAuthlibInjectorJar();
-                baseOpts.customArgs = [`-javaagent:${injectorJar}=ely.by`];
+                baseOpts.customArgs = [`-javaagent:${injectorJar}=ely.by`, ...(baseOpts.jvmArguments || [])];
                 mainWindow.webContents.send('launcher-log', 'Authlib Ely.by activé pour ce lancement.');
             } catch (injectErr) {
                 const injectMsg = injectErr && injectErr.message ? injectErr.message : String(injectErr);
                 mainWindow.webContents.send('launcher-log', `Authlib Ely.by non chargé (${injectMsg}). Le skin Ely.by peut ne pas apparaître.`);
             }
+        } else {
+            baseOpts.customArgs = baseOpts.jvmArguments;
         }
+
+        // Log JVM settings for debugging
+        mainWindow.webContents.send('launcher-log', `JVM Settings: Min=${memoryMinGb}G, Max=${memoryMaxGb}G, Args=${jvmSettings.args}`);
+        pushActionHistory('Lancement avec JVM personnalisés', 'info', `RAM: ${memoryMinGb}G-${memoryMaxGb}G`);
 
         launcher.removeAllListeners('close');
         launcher.removeAllListeners('error');
@@ -2516,3 +2841,140 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+/* ========== NEW IPC HANDLERS FOR 8 IMPROVEMENTS ========== */
+
+// JVM Settings handlers
+ipcMain.handle('get-jvm-settings', async () => {
+    return readJVMSettings();
+});
+
+ipcMain.handle('save-jvm-settings', async (event, settings) => {
+    try {
+        const saved = writeJVMSettings(settings);
+        pushActionHistory('JVM settings sauvegardés', 'success', JSON.stringify(settings));
+        if (mainWindow) mainWindow.webContents.send('launcher-log', 'Paramètres JVM mis à jour');
+        return { success: true, settings: saved };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+// History/Log handlers
+ipcMain.handle('get-action-history', async () => {
+    return getActionHistory();
+});
+
+ipcMain.handle('clear-action-history', async () => {
+    try {
+        fs.writeFileSync(actionHistoryFilePath, JSON.stringify([], null, 2), 'utf-8');
+        if (mainWindow) mainWindow.webContents.send('launcher-log', 'Historique des actions effacé');
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+// Performance monitor data (simulated)
+ipcMain.handle('get-system-stats', async () => {
+    try {
+        const cpus = os.cpus().length;
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
+
+        return {
+            success: true,
+            cpu: {
+                cores: cpus,
+                model: cpus > 0 ? os.cpus()[0].model : 'Unknown'
+            },
+            memory: {
+                total: Math.round(totalMem / 1024 / 1024 / 1024),
+                used: Math.round(usedMem / 1024 / 1024 / 1024),
+                free: Math.round(freeMem / 1024 / 1024 / 1024),
+                percentage: Math.round((usedMem / totalMem) * 100)
+            },
+            platform: process.platform
+        };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+// Add logging to game launch
+const originalLaunchGame = async (options) => {
+    pushActionHistory(`Lancement du jeu (${options.modded ? 'moddé' : 'vanilla'})`, 'info', JSON.stringify({
+        javaPath: options.javaPath,
+        version: options.version,
+        modded: options.modded,
+        ram: options.ram
+    }));
+};
+
+// Minecraft Profiles handlers (NEW improvement #5)
+ipcMain.handle('get-minecraft-profiles', async () => {
+    try {
+        const profiles = readLauncherProfiles(); // Reuse existing launcher profiles as minecraft profiles
+        return { success: true, profiles };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('save-minecraft-profile', async (event, profile) => {
+    try {
+        const profiles = readLauncherProfiles();
+        const idx = profiles.findIndex(p => p && p.id === profile.id);
+        if (idx !== -1) {
+            profiles[idx] = { ...profiles[idx], ...profile };
+        } else {
+            profiles.push(profile);
+        }
+        fs.mkdirSync(path.dirname(launcherProfilesPath), { recursive: true });
+        fs.writeFileSync(launcherProfilesPath, JSON.stringify(profiles, null, 2), 'utf-8');
+        pushActionHistory(`Profil Minecraft sauvegardé: ${profile.name}`, 'success', `Version: ${profile.version}`);
+        return { success: true, profile };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('delete-minecraft-profile', async (event, id) => {
+    try {
+        const profiles = readLauncherProfiles().filter(p => p && p.id !== id);
+        fs.mkdirSync(path.dirname(launcherProfilesPath), { recursive: true });
+        fs.writeFileSync(launcherProfilesPath, JSON.stringify(profiles, null, 2), 'utf-8');
+        pushActionHistory('Profil Minecraft supprimé', 'info', `ID: ${id}`);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('select-minecraft-profile', async (event, id) => {
+    try {
+        const profiles = readLauncherProfiles().map(p =>
+            p && p.id === id ? { ...p, active: true } : { ...p, active: false }
+        );
+        fs.mkdirSync(path.dirname(launcherProfilesPath), { recursive: true });
+        fs.writeFileSync(launcherProfilesPath, JSON.stringify(profiles, null, 2), 'utf-8');
+        const selectedProfile = profiles.find(p => p && p.id === id);
+        if (mainWindow) mainWindow.webContents.send('launcher-log', `Profil sélectionné: ${selectedProfile ? selectedProfile.name : 'Inconnu'}`);
+        pushActionHistory(`Profil Minecraft sélectionné: ${selectedProfile ? selectedProfile.name : 'Inconnu'}`, 'info', 'Version: ' + (selectedProfile ? selectedProfile.version : '?'));
+        return { success: true, profile: selectedProfile };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+console.log('[KuroVerse] 8 améliorations chargées:');
+console.log('[1] Theme Toggle (Dark/Light avec localStorage)');
+console.log('[2] JVM Settings (RAM min/max + arguments personnalisés)');
+console.log('[3] Action History (Logs persistants, 500 entrées max)');
+console.log('[4] Notification System (Toasts automatiques)');
+console.log('[5] Minecraft Profiles (Gestion versions + sauvegardes)');
+console.log('[6] Integrity Verification (Vérification fichiers + recommandations)');
+console.log('[7] Unified Search (Ctrl+K global search)');
+console.log('[8] Performance Monitor (F1 pour afficher, stats en temps réel)');
+console.log('[BONUS] Enhanced Logging (tous les événements enregistrés)');
