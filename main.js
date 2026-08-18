@@ -1059,7 +1059,7 @@ function compareVersions(v1, v2) {
 async function fetchUpdateMetadata() {
     try {
         const updateInfoUrl = getUpdateInfoUrl();
-        if (!updateInfoUrl || updateInfoUrl === UPDATE_URL_PLACEHOLDER) {
+        if (!updateInfoUrl || updateInfoUrl === 'UPDATE_URL_PLACEHOLDER') {
             throw new Error(`Aucune URL de mise à jour configurée. Mets une vraie URL publique dans ${updateUrlFilePath}.`);
         }
         const response = await axios.get(updateInfoUrl, { timeout: 15000 });
