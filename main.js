@@ -2725,20 +2725,18 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
             version: { number: "1.21.1", type: "release" },
             javaPath: javaPath,
             memory: { max: `${memoryMaxGb}G`, min: `${memoryMinGb}G` },
-            jvmArguments: buildJVMArguments() // Add custom JVM args from improvement #2
+            customArgs: buildJVMArguments()
         };
 
         if (currentAuthType === 'ely') {
             try {
                 const injectorJar = await resolveAuthlibInjectorJar();
-                baseOpts.customArgs = [`-javaagent:${injectorJar}=ely.by`, ...(baseOpts.jvmArguments || [])];
+                baseOpts.customArgs.unshift(`-javaagent:${injectorJar}=ely.by`);
                 mainWindow.webContents.send('launcher-log', 'Authlib Ely.by activé pour ce lancement.');
             } catch (injectErr) {
                 const injectMsg = injectErr && injectErr.message ? injectErr.message : String(injectErr);
                 mainWindow.webContents.send('launcher-log', `Authlib Ely.by non chargé (${injectMsg}). Le skin Ely.by peut ne pas apparaître.`);
             }
-        } else {
-            baseOpts.customArgs = baseOpts.jvmArguments;
         }
 
         // Log JVM settings for debugging

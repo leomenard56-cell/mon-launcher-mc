@@ -1,5 +1,5 @@
 {
-  "version": "1.0.38",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.38/KuroVerse-Setup-1.0.38.exe",
-  "notes": "Correction du détecteur de mise à jour, refonte de la logique update et stabilité globale."
+  "version": "1.0.39",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.39/KuroVerse-Setup-1.0.39.exe",
+  "notes": "Correction du lancement Minecraft et suppression du doublon d'arguments JVM."
 }
