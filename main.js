@@ -114,7 +114,7 @@ function buildJVMArguments() {
     let args = [];
     if (jvm.minRam) args.push(`-Xms${jvm.minRam}G`);
     if (jvm.maxRam) args.push(`-Xmx${jvm.maxRam}G`);
-    if (jvm.args) args.push(jvm.args);
+    if (jvm.args) args.push(...String(jvm.args).trim().split(/\s+/).filter(Boolean));
     return args;
 }
 
