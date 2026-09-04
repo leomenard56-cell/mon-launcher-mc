@@ -33,11 +33,21 @@ const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
 const launcherBackupsPath = path.join(launcherDataPath, 'backups');
 const jvmSettingsFilePath = path.join(launcherDataPath, 'jvm_settings.json');
 const actionHistoryFilePath = path.join(launcherDataPath, 'action_history.json');
+const gpuSettingsFilePath = path.join(launcherDataPath, 'gpu_settings.json');
 const ownerCurseForgeKeyPath = path.join(__dirname, 'owner_curseforge_key.txt');
-const OWNER_CURSEFORGE_KEY_BUILTIN = '$2a$10$/9zkN4Dmpf9Hbwey/CKqXubYIMLbW5XT7V0D/k29lDTx9MQe4S8x2';
+// Secrets are kept out of source control; see main.secrets.example.json
+function loadLocalSecrets() {
+    try {
+        const secretsPath = path.join(__dirname, 'main.secrets.json');
+        if (fs.existsSync(secretsPath)) return JSON.parse(fs.readFileSync(secretsPath, 'utf-8'));
+    } catch (_) { /* ignore malformed/missing local secrets file */ }
+    return {};
+}
+const localSecrets = loadLocalSecrets();
+const OWNER_CURSEFORGE_KEY_BUILTIN = process.env.CURSEFORGE_OWNER_KEY || localSecrets.curseForgeApiKey || '';
 const ELY_AUTH_BASE = 'https://authserver.ely.by';
 const DISCORD_CLIENT_ID = '1537030799596064768';
-const DISCORD_CLIENT_SECRET = 'Y2uENQsFVEd7g91O7cDxGfDs5tMX6wDp';
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || localSecrets.discordClientSecret || '';
 const DISCORD_REDIRECT_URI = 'http://localhost:35555/discord-callback';
 const DISCORD_API_BASE = 'https://discord.com/api/oauth2';
 const DEFAULT_GITHUB_MODS_REPO = 'leomenard56-cell/mon-launcher-mc';
@@ -51,6 +61,35 @@ const DEFAULT_LAUNCHER_SETTINGS = {
 
 function ensureDirectory(dirPath) {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+}
+
+// Detects truncated/corrupted jars (e.g. from an interrupted copy) by looking for the ZIP End-Of-Central-Directory signature.
+function isValidZipFile(filePath) {
+    try {
+        const stat = fs.statSync(filePath);
+        if (stat.size < 22) return false;
+        const readSize = Math.min(stat.size, 65557); // max EOCD size (22 + 65535 comment bytes)
+        const buffer = Buffer.alloc(readSize);
+        const fd = fs.openSync(filePath, 'r');
+        try {
+            fs.readSync(fd, buffer, 0, readSize, stat.size - readSize);
+        } finally {
+            fs.closeSync(fd);
+        }
+        for (let i = buffer.length - 22; i >= 0; i--) {
+            if (buffer[i] === 0x50 && buffer[i + 1] === 0x4b && buffer[i + 2] === 0x05 && buffer[i + 3] === 0x06) return true;
+        }
+        return false;
+    } catch (_) {
+        return false;
+    }
+}
+
+// Copy-then-rename so an interrupted copy never leaves a truncated file at the final path.
+function copyFileAtomic(src, dest) {
+    const tmpDest = `${dest}.tmp-${process.pid}-${Date.now()}`;
+    fs.copyFileSync(src, tmpDest);
+    fs.renameSync(tmpDest, dest);
 }
 
 function ensureLauncherDataDirectories() {
@@ -116,6 +155,73 @@ function buildJVMArguments() {
     if (jvm.maxRam) args.push(`-Xmx${jvm.maxRam}G`);
     if (jvm.args) args.push(...String(jvm.args).trim().split(/\s+/).filter(Boolean));
     return args;
+}
+
+/* ===== GPU DETECTION & SELECTION ===== */
+function detectGpus() {
+    if (process.platform !== 'win32') return [];
+    try {
+        const result = spawnSync('powershell', [
+            '-NoProfile', '-NonInteractive', '-Command',
+            "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"
+        ], { encoding: 'utf-8', timeout: 6000 });
+        const output = String((result && result.stdout) || '').trim();
+        if (!output) return [];
+        return output.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    } catch (_) {
+        return [];
+    }
+}
+
+function readGpuSettings() {
+    ensureLauncherDataDirectories();
+    if (!fs.existsSync(gpuSettingsFilePath)) return { preference: 'auto' };
+    try {
+        const parsed = JSON.parse(fs.readFileSync(gpuSettingsFilePath, 'utf-8'));
+        return { preference: parsed.preference || 'auto' };
+    } catch (_) {
+        return { preference: 'auto' };
+    }
+}
+
+function writeGpuSettings(settings) {
+    const preference = ['auto', 'power-saving', 'high-performance'].includes(settings && settings.preference)
+        ? settings.preference : 'auto';
+    ensureLauncherDataDirectories();
+    const saved = { preference };
+    fs.writeFileSync(gpuSettingsFilePath, JSON.stringify(saved, null, 2), 'utf-8');
+    return saved;
+}
+
+// Mirrors Windows Settings > Display > Graphics: keys the preference to the exact javaw/java exe path.
+function applyGpuPreference(javaExePath, preference) {
+    if (process.platform !== 'win32' || !javaExePath) return;
+    const regValueName = javaExePath;
+    const regPath = 'HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences';
+    try {
+        if (preference === 'power-saving' || preference === 'high-performance') {
+            const gpuFlag = preference === 'high-performance' ? '2' : '1';
+            spawnSync('reg', ['add', regPath, '/v', regValueName, '/t', 'REG_SZ', '/d', `GpuPreference=${gpuFlag};`, '/f'], { timeout: 5000 });
+        } else {
+            spawnSync('reg', ['delete', regPath, '/v', regValueName, '/f'], { timeout: 5000 });
+        }
+    } catch (_) { /* best-effort, launch must not fail because of this */ }
+}
+
+const MIN_FREE_DISK_BYTES = 3 * 1024 * 1024 * 1024;
+function getFreeDiskSpaceBytes(targetPath) {
+    try {
+        const stats = fs.statfsSync(targetPath);
+        return stats.bavail * stats.bsize;
+    } catch (_) {
+        return null; // statfs unsupported here; skip the check rather than block launch
+    }
+}
+function checkDiskSpaceOrError(targetPath) {
+    const freeBytes = getFreeDiskSpaceBytes(targetPath);
+    if (freeBytes === null || freeBytes >= MIN_FREE_DISK_BYTES) return null;
+    const freeGb = (freeBytes / 1024 / 1024 / 1024).toFixed(1);
+    return `Espace disque insuffisant (${freeGb} Go libres, 3 Go minimum recommandés).`;
 }
 
 /* ===== ACTION HISTORY/LOGGING ===== */
@@ -337,6 +443,8 @@ function analyzeLauncherIntegrity(mods) {
 
         if (Number(mod.size || 0) <= 0) {
             issues.push({ type: 'empty-file', path: mod.fileName, message: `Fichier vide: ${mod.fileName}` });
+        } else if (mod.path && !isValidZipFile(mod.path)) {
+            issues.push({ type: 'corrupted-file', path: mod.fileName, message: `Fichier corrompu (zip invalide): ${mod.fileName}` });
         }
     }
 
@@ -1541,8 +1649,12 @@ function syncModsFromAppFolder() {
             const dest = path.join(modsFolderPath, file);
             const disabledDest = `${dest}.disabled`;
             if (fs.existsSync(disabledDest)) continue;
-            if (!fs.existsSync(dest) || fs.statSync(src).mtimeMs > fs.statSync(dest).mtimeMs) {
-                fs.copyFileSync(src, dest);
+            const destMissing = !fs.existsSync(dest);
+            const destOutdated = !destMissing && fs.statSync(src).mtimeMs > fs.statSync(dest).mtimeMs;
+            const destCorrupted = !destMissing && !destOutdated && !isValidZipFile(dest);
+            if (destMissing || destOutdated || destCorrupted) {
+                copyFileAtomic(src, dest);
+                if (destCorrupted && mainWindow) mainWindow.webContents.send('launcher-log', `Mod corrompu détecté et réparé : ${file}`);
                 installed.push({ name: file, path: dest });
             }
         } catch (err) {
@@ -1554,6 +1666,8 @@ function syncModsFromAppFolder() {
 
 ipcMain.handle('download-dependencies', async (event, useForge = false) => {
     try {
+        const diskSpaceError = checkDiskSpaceOrError(launcherDataPath);
+        if (diskSpaceError) return { success: false, error: diskSpaceError };
         const javaInfo = await resolveJavaPath(true);
         let installedJava = javaInfo.installedNow;
         let javaResult = javaInfo.javaPath;
@@ -1835,25 +1949,6 @@ ipcMain.on('login-microsoft', async (event) => {
         return;
     } finally {
         loginInProgress = false;
-    }
-});
-
-ipcMain.on('logout', async (event) => {
-    try {
-        const previousAuth = userAuth ? userAuth.name : 'Inconnu';
-        userAuth = null;
-        currentAuthType = null;
-        activeAuths = {}; // Clear all active auths
-        if (fs.existsSync(authFilePath)) fs.unlinkSync(authFilePath);
-        if (mainWindow) mainWindow.webContents.send('launcher-log', 'Déconnexion réussie');
-
-        // Log action (improvement #3: Action History)
-        pushActionHistory(`Déconnexion réussie: ${previousAuth}`, 'info', 'Compte enlevé');
-    } catch (err) {
-        if (mainWindow) mainWindow.webContents.send('launcher-log', 'Erreur déconnexion: ' + err.message);
-
-        // Log action (improvement #3: Action History)
-        pushActionHistory('Erreur lors de la déconnexion', 'error', err.message);
     }
 });
 
@@ -2672,6 +2767,12 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
         mainWindow.webContents.send('launch-finished', { success: false, error: 'Connectez-vous avant de lancer le jeu.' });
         return;
     }
+    const diskSpaceError = checkDiskSpaceOrError(launcherDataPath);
+    if (diskSpaceError) {
+        mainWindow.webContents.send('launcher-log', diskSpaceError);
+        mainWindow.webContents.send('launch-finished', { success: false, error: diskSpaceError });
+        return;
+    }
     const syncedMods = syncModsFromAppFolder();
     if (syncedMods.length) {
         mainWindow.webContents.send('mods-installed', { installed: syncedMods, folder: modsFolderPath });
@@ -2692,6 +2793,12 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
         mainWindow.webContents.send('launcher-log', reason);
         mainWindow.webContents.send('launch-finished', { success: false, error: reason });
         return;
+    }
+
+    const gpuSettings = readGpuSettings();
+    if (gpuSettings.preference !== 'auto') {
+        applyGpuPreference(javaPath, gpuSettings.preference);
+        mainWindow.webContents.send('launcher-log', `Préférence GPU appliquée : ${gpuSettings.preference === 'high-performance' ? 'hautes performances' : 'économie d\'énergie'}.`);
     }
 
     gameLaunchInProgress = true;
@@ -2858,9 +2965,40 @@ ipcMain.handle('save-jvm-settings', async (event, settings) => {
     }
 });
 
+// GPU selection handlers
+ipcMain.handle('get-gpu-settings', async () => {
+    return { settings: readGpuSettings(), gpus: detectGpus(), platform: process.platform };
+});
+
+ipcMain.handle('save-gpu-settings', async (event, payload) => {
+    try {
+        const saved = writeGpuSettings(payload || {});
+        const javaInfo = await resolveJavaPath(false);
+        if (javaInfo && javaInfo.javaPath) applyGpuPreference(javaInfo.javaPath, saved.preference);
+        pushActionHistory('Préférence GPU sauvegardée', 'success', JSON.stringify(saved));
+        if (mainWindow) mainWindow.webContents.send('launcher-log', 'Préférence GPU mise à jour');
+        return { success: true, settings: saved };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
 // History/Log handlers
 ipcMain.handle('get-action-history', async () => {
     return getActionHistory();
+});
+
+ipcMain.handle('get-recent-game-logs', async () => {
+    const logsDir = path.join(launcherDataPath, 'logs');
+    for (const name of ['latest.log', 'debug.log']) {
+        const filePath = path.join(logsDir, name);
+        if (!fs.existsSync(filePath)) continue;
+        try {
+            const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/).filter(Boolean);
+            return { file: name, lines: lines.slice(-60) };
+        } catch (_) { /* try next candidate */ }
+    }
+    return { file: null, lines: [] };
 });
 
 ipcMain.handle('clear-action-history', async () => {

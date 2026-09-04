@@ -4,3 +4,11 @@ dist
 _tmp_*.js
 *.patch.txt
 mods/Pixelmon-1.21.1-9.3.16-universal (1).jar
+
+# Local-only secrets, never publish these
+main.secrets.json
+
+# Local debug/utility scripts, not part of the app
+*.ps1
+npm_err.txt
+npm_out.txt

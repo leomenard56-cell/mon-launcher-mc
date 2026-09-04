@@ -466,6 +466,7 @@
                 <input type="checkbox" id="moddedCheckbox" style="width:16px; height:16px;"> Lancer en mode moddé (Forge)
             </label>
             <button id="playBtn" class="btn-play">Jouer</button>
+            <button id="retryPlayBtn" class="btn-connexion" style="width: 100%; margin-top: 8px; background: #f59e0b; display:none;"><i class="fa-solid fa-rotate-right" style="margin-right: 8px;"></i>Réessayer</button>
             <div class="progress-container" id="progressContainer">
                 <div class="progress-bar" id="progressBar"></div>
             </div>
@@ -496,6 +497,7 @@
             </div>
             <div class="panel-card">
                 <div class="mods-list">
+                    <div class="mod-item"><h4>v1.0.41</h4><p>Auto-réparation des mods corrompus, vrai rapport de crash, bouton Réessayer et sélection GPU.</p></div>
                     <div class="mod-item"><h4>v1.0.40</h4><p>Correction du lancement Java : séparation correcte des arguments JVM.</p></div>
                     <div class="mod-item"><h4>v1.0.39</h4><p>Correction du lancement Minecraft et suppression du doublon d'arguments JVM.</p></div>
                     <div class="mod-item"><h4>v1.0.38</h4><p>Correction du détecteur de mise à jour, refonte de la logique update et stabilité globale.</p></div>
@@ -915,7 +917,7 @@
     </div>
 
     <script>
-        const playBtn = document.getElementById('playBtn'), progressContainer = document.getElementById('progressContainer'), progressBar = document.getElementById('progressBar'), statusText = document.getElementById('status-text'), downloadSize = document.getElementById('downloadSize'), downloadSpeed = document.getElementById('downloadSpeed'), playerNameH3 = document.getElementById('playerName'), playerAvatarDiv = document.getElementById('playerAvatar'), playerStatusP = document.getElementById('playerStatus');
+        const playBtn = document.getElementById('playBtn'), retryPlayBtn = document.getElementById('retryPlayBtn'), progressContainer = document.getElementById('progressContainer'), progressBar = document.getElementById('progressBar'), statusText = document.getElementById('status-text'), downloadSize = document.getElementById('downloadSize'), downloadSpeed = document.getElementById('downloadSpeed'), playerNameH3 = document.getElementById('playerName'), playerAvatarDiv = document.getElementById('playerAvatar'), playerStatusP = document.getElementById('playerStatus');
         const btnCrack = document.getElementById('btnCrack'), pseudoInput = document.getElementById('pseudoInput'), elyUsernameInput = document.getElementById('elyUsernameInput'), elyPasswordInput = document.getElementById('elyPasswordInput'), elyTotpInput = document.getElementById('elyTotpInput'), btnEly = document.getElementById('btnEly'), btnMicrosoft = document.getElementById('btnMicrosoft'), btnDiscord = document.getElementById('btnDiscord'), btnLogout = document.getElementById('btnLogout'), launchZone = document.getElementById('launchZone'), installModsBtn = document.getElementById('installModsBtn'), modStatus = document.getElementById('modStatus'), moddedCheckbox = document.getElementById('moddedCheckbox'), downloadDepsBtn = document.getElementById('downloadDepsBtn');
         const tabNewsBtn = document.getElementById('tabNewsBtn'), tabModsBtn = document.getElementById('tabModsBtn'), tabCurseForgeBtn = document.getElementById('tabCurseForgeBtn'), tabTLauncherBtn = document.getElementById('tabTLauncherBtn'), tabSkinsBtn = document.getElementById('tabSkinsBtn'), tabCustomPacksBtn = document.getElementById('tabCustomPacksBtn'), newsView = document.getElementById('newsView'), modsView = document.getElementById('modsView'), curseForgeView = document.getElementById('curseForgeView'), tlauncherView = document.getElementById('tlauncherView'), skinsView = document.getElementById('skinsView'), customPacksView = document.getElementById('customPacksView'), modsList = document.getElementById('modsList'), modsInfo = document.getElementById('modsInfo'), refreshModsBtn = document.getElementById('refreshModsBtn'), importCurseForgeBtn = document.getElementById('importCurseForgeBtn'), exportModPackBtn = document.getElementById('exportModPackBtn'), installSingleModsBtn = document.getElementById('installSingleModsBtn');
         const importTLauncherBtn = document.getElementById('importTLauncherBtn'), tlauncherInfo = document.getElementById('tlauncherInfo'), tlauncherImportedList = document.getElementById('tlauncherImportedList');
@@ -966,7 +968,7 @@
             if (launcherLogBuffer.length > 80) launcherLogBuffer.shift();
         };
 
-        const buildCrashReport = () => {
+        const buildCrashReport = async () => {
             const settingsBlock = JSON.stringify(launcherSettings || {}, null, 2);
             const modsBlock = JSON.stringify((installedModsCache || []).slice(0, 20).map((mod) => ({
                 name: mod.name,
@@ -977,6 +979,17 @@
                 sha1: mod.sha1
             })), null, 2);
             const logsBlock = launcherLogBuffer.map((row) => `[${row.at}] ${row.text}`).join('\n');
+            let gameLogsBlock = '(non disponible)';
+            if (window.launcherAPI && window.launcherAPI.getRecentGameLogs) {
+                try {
+                    const gameLogs = await window.launcherAPI.getRecentGameLogs();
+                    if (gameLogs && gameLogs.lines && gameLogs.lines.length) {
+                        gameLogsBlock = `(${gameLogs.file})\n` + gameLogs.lines.join('\n');
+                    } else {
+                        gameLogsBlock = '(aucun log de jeu trouvé)';
+                    }
+                } catch (_) { /* keep default gameLogsBlock */ }
+            }
             return [
                 'KuroVerse crash report',
                 `GeneratedAt: ${new Date().toISOString()}`,
@@ -984,7 +997,8 @@
                 `UserAgent: ${navigator.userAgent}`,
                 `LauncherSettings: ${settingsBlock}`,
                 `InstalledMods: ${modsBlock}`,
-                `RecentLogs:\n${logsBlock || '(aucun log)'}`
+                `RecentLauncherLogs:\n${logsBlock || '(aucun log)'}`,
+                `RecentGameLogs:\n${gameLogsBlock}`
             ].join('\n\n');
         };
 
@@ -1700,7 +1714,7 @@
         };
 
         const copyCrashReport = async () => {
-            const report = buildCrashReport();
+            const report = await buildCrashReport();
             try {
                 await navigator.clipboard.writeText(report);
                 crashReportInfo.innerText = 'Rapport de crash copié dans le presse-papiers.';
@@ -2735,6 +2749,7 @@
         playBtn.addEventListener('click', () => {
             playBtn.disabled = true;
             playBtn.innerText = "Lancement...";
+            retryPlayBtn.style.display = 'none';
             progressContainer.style.display = 'block';
             statusText.innerText = 'Préparation du jeu...';
             downloadSize.innerText = '0 / 0 fichiers';
@@ -2744,11 +2759,16 @@
             window.launcherAPI.playGame(moddedCheckbox.checked);
         });
 
+        retryPlayBtn.addEventListener('click', () => playBtn.click());
+
         if (window.launcherAPIEvents && window.launcherAPIEvents.onLaunchFinished) {
             window.launcherAPIEvents.onLaunchFinished((data) => {
                 resetPlayButton();
                 if (!data || data.success !== true) {
                     statusText.innerText = 'Échec du lancement : ' + (data && data.error ? data.error : 'Erreur inconnue');
+                    retryPlayBtn.style.display = 'block';
+                } else {
+                    retryPlayBtn.style.display = 'none';
                 }
             });
         }
@@ -3112,6 +3132,56 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
         if (lastSettingsField) {
             lastSettingsField.insertAdjacentHTML('afterend', jvmSection);
         }
+
+        /* ========== GPU SELECTION IN SETTINGS MODAL ========== */
+        const gpuSection = `
+            <hr style="border-color:#2b3950; margin:12px 0;">
+            <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Carte graphique pour Minecraft</label>
+            <div class="jvm-section">
+                <div id="gpuDetectedList" style="font-size:11px; color:#888; margin-bottom:8px;">Détection des cartes graphiques...</div>
+                <label style="font-size:11px; color:#a8a8b3; margin-bottom:4px; display:block;">Carte à utiliser</label>
+                <select id="gpuPreferenceSelect" class="jvm-input">
+                    <option value="auto">Automatique (choix de Windows)</option>
+                    <option value="power-saving">Économie d'énergie (GPU intégré)</option>
+                    <option value="high-performance">Hautes performances (GPU dédié)</option>
+                </select>
+                <div style="font-size:11px; color:#888; margin-top:6px;">S'applique à la version de Java utilisée pour lancer Minecraft (même mécanisme que Paramètres Windows &gt; Affichage &gt; Graphismes).</div>
+            </div>
+        `;
+        const insertedJvmSection = settingsCard.querySelector('.jvm-section');
+        if (insertedJvmSection) insertedJvmSection.insertAdjacentHTML('afterend', gpuSection);
+
+        const gpuPreferenceSelect = document.getElementById('gpuPreferenceSelect');
+        const gpuDetectedList = document.getElementById('gpuDetectedList');
+
+        const loadGpuSettings = async () => {
+            if (!window.launcherAPI || !window.launcherAPI.getGpuSettings) return;
+            try {
+                const result = await window.launcherAPI.getGpuSettings();
+                if (!result) return;
+                if (gpuPreferenceSelect) gpuPreferenceSelect.value = (result.settings && result.settings.preference) || 'auto';
+                if (gpuDetectedList) {
+                    if (result.platform !== 'win32') {
+                        gpuDetectedList.innerText = 'Sélection GPU disponible uniquement sur Windows.';
+                    } else if (Array.isArray(result.gpus) && result.gpus.length) {
+                        gpuDetectedList.innerText = 'Détectées : ' + result.gpus.join(', ');
+                    } else {
+                        gpuDetectedList.innerText = 'Aucune carte graphique détectée.';
+                    }
+                }
+            } catch (_) { /* keep default UI on failure */ }
+        };
+        loadGpuSettings();
+
+        const saveGpuSettings = async () => {
+            if (!window.launcherAPI || !window.launcherAPI.saveGpuSettings || !gpuPreferenceSelect) return;
+            try {
+                await window.launcherAPI.saveGpuSettings({ preference: gpuPreferenceSelect.value });
+                notify('Préférence GPU sauvegardée', 'success');
+            } catch (_) { /* non-blocking */ }
+        };
+        window.saveGpuSettings = saveGpuSettings;
+        alreadyDeclaredSaveSettingsBtn.addEventListener('click', () => { saveGpuSettings(); });
 
         /* ========== HISTORY TAB ========== */
         // Add History tab to tab-bar

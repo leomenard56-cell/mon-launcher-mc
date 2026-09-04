@@ -44,9 +44,14 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     getJVMSettings: () => ipcRenderer.invoke('get-jvm-settings'),
     saveJVMSettings: (settings) => ipcRenderer.invoke('save-jvm-settings', settings),
 
+    // GPU selection handlers
+    getGpuSettings: () => ipcRenderer.invoke('get-gpu-settings'),
+    saveGpuSettings: (payload) => ipcRenderer.invoke('save-gpu-settings', payload),
+
     // NEW: Action History handlers (improvement #3)
     getActionHistory: () => ipcRenderer.invoke('get-action-history'),
     clearActionHistory: () => ipcRenderer.invoke('clear-action-history'),
+    getRecentGameLogs: () => ipcRenderer.invoke('get-recent-game-logs'),
 
     // NEW: Minecraft Profiles handlers (improvement #5)
     getMinecraftProfiles: () => ipcRenderer.invoke('get-minecraft-profiles'),
@@ -63,6 +68,7 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     onDiscordSuccess: (callback) => ipcRenderer.on('discord-success', (event, profile) => callback(profile)),
     onDiscordFailed: (callback) => ipcRenderer.on('discord-failed', (event, error) => callback(error)),
     onActiveAuthsUpdated: (callback) => ipcRenderer.on('update-active-auths', (event, authTypes) => callback(authTypes)),
+    onProgress: (callback) => ipcRenderer.on('launcher-progress', (event, data) => callback(data)),
     onDownloadStatus: (callback) => ipcRenderer.on('launcher-download-status', (event, data) => callback(data)),
     onLog: (callback) => ipcRenderer.on('launcher-log', (event, log) => callback(log)),
     onMicrosoftDevice: (callback) => ipcRenderer.on('microsoft-device', (event, data) => callback(data)),
