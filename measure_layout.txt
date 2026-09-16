@@ -1,0 +1,20 @@
+
+> mon-launcher-mc@1.0.41 start
+> electron .
+
+
+[KuroVerse] 8 améliorations chargées:
+[1] Theme Toggle (Dark/Light avec localStorage)
+[2] JVM Settings (RAM min/max + arguments personnalisés)
+[3] Action History (Logs persistants, 500 entrées max)
+[4] Notification System (Toasts automatiques)
+[5] Minecraft Profiles (Gestion versions + sauvegardes)
+[6] Integrity Verification (Vérification fichiers + recommandations)
+[7] Unified Search (Ctrl+K global search)
+[8] Performance Monitor (F1 pour afficher, stats en temps réel)
+[BONUS] Enhanced Logging (tous les événements enregistrés)
+(node:35348) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `electron --trace-deprecation ...` to show where the warning was created)
+[Discord Server] Callback server lancé sur http://localhost:35555
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[layout-measure] {"viewport":[1267,686],"zoom":1.100000023841858,"body":{"x":0,"y":0,"width":1267.272705078125,"height":686.3635864257812,"position":"static","display":"grid"},"sidebar":{"x":0,"y":0,"width":260,"height":686.3635864257812,"position":"relative","display":"flex"},"content":{"x":260,"y":0,"width":1007.272705078125,"height":686.3635864257812,"position":"relative","display":"flex"},"settings":{"x":276.9176025390625,"y":41.9886360168457,"width":43.99147415161133,"height":16.363636016845703,"position":"relative","display":"block"},"grid":"260px 1007.27px"}

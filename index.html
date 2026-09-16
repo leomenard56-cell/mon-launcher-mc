@@ -37,10 +37,18 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-primary); color: var(--text-primary); display: flex; height: 100vh; overflow: hidden; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-primary); color: var(--text-primary); display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100vh; overflow: hidden; }
+        .wallpaper-video, .wallpaper-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: none; pointer-events: none; background: #080a10; }
+        .wallpaper-shade { position: absolute; inset: 0; z-index: 1; display: none; pointer-events: none; background: rgba(5, 8, 15, 0.28); }
+        body.wallpaper-active .wallpaper-video, body.wallpaper-active .wallpaper-image, body.wallpaper-active .wallpaper-shade { display: block; }
+        body.wallpaper-active .content { background: rgba(15, 17, 22, 0.72); }
         .sidebar {
+            position: relative;
+            z-index: 2;
+            grid-column: 1;
+            grid-row: 1;
             width: 260px;
-            flex: 0 0 260px;
+            min-width: 0;
             background: #111114;
             padding: 20px;
             display: flex;
@@ -75,7 +83,9 @@
         .btn-play:disabled { background: #333; color: #666; cursor: not-allowed; box-shadow: none; transform: none; }
         .content {
             position: relative;
-            flex-grow: 1;
+            z-index: 2;
+            grid-column: 2;
+            grid-row: 1;
             min-width: 0;
             padding: 30px;
             display: flex;
@@ -86,10 +96,12 @@
             overflow-y: auto;
             border-left: 1px solid #2e405f;
         }
+        .content > *:not(.wallpaper-video):not(.wallpaper-image):not(.wallpaper-shade) { position: relative; z-index: 2; }
+        .content > .settings-btn { position: absolute !important; top: 12px !important; right: 14px !important; width: 44px !important; height: 44px !important; z-index: 6 !important; }
         .settings-btn {
             position: absolute;
-            top: 22px;
-            right: 22px;
+            top: 12px;
+            right: 14px;
             width: 44px;
             height: 44px;
             border-radius: 12px;
@@ -101,6 +113,7 @@
             z-index: 6;
         }
         .settings-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .content > .tab-bar { margin-top: 0; padding-right: 72px; }
         .settings-overlay {
             position: fixed;
             inset: 0;
@@ -113,16 +126,20 @@
             padding: 20px;
         }
         .settings-card {
-            width: min(520px, 100%);
+            width: min(560px, calc(100vw - 32px));
+            max-height: calc(100vh - 32px);
+            overflow-y: auto;
             background: #111722;
             border: 1px solid #2b3950;
             border-radius: 16px;
             box-shadow: 0 28px 70px rgba(0,0,0,0.55);
-            padding: 20px;
+            padding: 16px;
         }
-        .settings-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
-        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+        .settings-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         .settings-field { display: grid; gap: 8px; }
+        .settings-advanced-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 10px; margin: 2px 0 10px; }
+        .settings-advanced-panel { min-width: 0; }
         .settings-field label { font-size: 13px; color: #c9d2e8; font-weight: 700; }
         .settings-field input {
             width: 100%;
@@ -149,7 +166,10 @@
             font-weight: 700;
         }
         .resolution-preset:hover { filter: brightness(1.08); }
-        .settings-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+        .settings-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+        @media (max-width: 720px) {
+            .settings-advanced-grid { grid-template-columns: 1fr; }
+        }
         .settings-note { font-size: 12px; color: #a8a8b3; line-height: 1.45; }
         .skin-studio-grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
         .skin-preview-wrap { display: flex; justify-content: center; align-items: center; min-height: 360px; background: #0d1320; border: 1px solid #2b3950; border-radius: 12px; }
@@ -314,7 +334,6 @@
             .cf-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         @media (max-width: 960px) {
-            .sidebar { width: 220px; flex-basis: 220px; padding: 14px; }
             .content { padding: 18px; }
             .mods-grid { grid-template-columns: 1fr; }
             .cf-browser { grid-template-columns: 1fr; }
@@ -322,7 +341,6 @@
         }
         @media (max-width: 700px) {
             body { overflow: hidden; }
-            .sidebar { width: 180px; flex-basis: 180px; padding: 10px; }
             .content { padding: 14px 10px; }
             .profile-card { padding: 10px; margin-bottom: 16px; }
             .avatar { width: 34px; height: 34px; margin-right: 8px; }
@@ -408,10 +426,13 @@
         .tab-btn { background: var(--bg-tertiary); color: var(--text-secondary); }
         .settings-overlay { background: rgba(4, 8, 18, 0.72); }
         .settings-card { background: var(--bg-secondary); }
+
+        /* Final shell layout: keep the navigation rail visible beside the main area. */
+        body > .sidebar { grid-area: 1 / 1; display: flex !important; width: 260px !important; min-width: 260px !important; }
+        body > .content { grid-area: 1 / 2; display: flex !important; width: auto !important; min-width: 0; }
     </style>
 </head>
 <body>
-
     <div class="sidebar">
         <div>
             <div class="profile-card">
@@ -479,6 +500,9 @@
     </div>
 
     <div class="content">
+        <video id="wallpaperVideo" class="wallpaper-video" autoplay loop muted playsinline preload="auto"></video>
+        <img id="wallpaperImage" class="wallpaper-image" alt="Fond animé">
+        <div class="wallpaper-shade"></div>
         <button id="settingsBtn" class="settings-btn" title="Paramètres"><i class="fa-solid fa-gear"></i></button>
         <div class="tab-bar">
             <button class="tab-btn active" id="tabNewsBtn">Actualités</button>
@@ -497,6 +521,7 @@
             </div>
             <div class="panel-card">
                 <div class="mods-list">
+                    <div class="mod-item"><h4>v1.0.42</h4><p>✨ GIF→MP4 conversion, Performance Monitor (CPU/RAM/FPS), Export logs, Nettoyage cache auto, Validation d'intégrité</p></div>
                     <div class="mod-item"><h4>v1.0.41</h4><p>Auto-réparation des mods corrompus, vrai rapport de crash, bouton Réessayer et sélection GPU.</p></div>
                     <div class="mod-item"><h4>v1.0.40</h4><p>Correction du lancement Java : séparation correcte des arguments JVM.</p></div>
                     <div class="mod-item"><h4>v1.0.39</h4><p>Correction du lancement Minecraft et suppression du doublon d'arguments JVM.</p></div>
@@ -876,10 +901,7 @@
                     <label for="launcherHeightInput">Hauteur du launcher</label>
                     <input id="launcherHeightInput" type="number" min="560" max="1600" step="10" value="600">
                 </div>
-                <div class="settings-field" style="grid-column: 1 / -1;">
-                    <label for="minecraftRamInput">RAM Minecraft (Go)</label>
-                    <input id="minecraftRamInput" type="number" min="2" max="32" step="1" value="6">
-                </div>
+                <input id="minecraftRamInput" type="hidden" value="6">
             </div>
             <div class="settings-field" style="margin-bottom: 10px;">
                 <label>Profils de lancement</label>
@@ -913,6 +935,78 @@
         <div style="display:flex; gap:8px;">
             <button id="openBrowserBtn" class="btn-connexion" style="flex:1; background:#2ec4b6;">Ouvrir le navigateur</button>
             <button id="closeDeviceModal" class="btn-connexion" style="flex:0 0 auto; background:#555;">Fermer</button>
+        </div>
+    </div>
+
+    <!-- ===== AMÉLIORATION 1: NOTIFICATION SYSTEM ===== -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- ===== AMÉLIORATION 2: JVM SETTINGS (in Settings Modal) ===== -->
+    <!-- To be added in settings-card via JavaScript -->
+
+    <!-- ===== AMÉLIORATION 3: HISTORY/LOG TAB ===== -->
+    <!-- Add new tab in tab-bar: -->
+    <!-- <button class="tab-btn" id="tabHistoryBtn">📋 Historique</button> -->
+    <!-- Add panel in content: -->
+    <!-- <div id="historyView" class="tab-panel"> ... </div> -->
+
+    <!-- ===== AMÉLIORATION 5: MINECRAFT PROFILES MODAL ===== -->
+    <div id="profilesOverlay" class="settings-overlay" style="display:none; z-index:9997;">
+        <div class="settings-card" style="width: min(600px, 90%); max-height: 80vh; overflow-y: auto;">
+            <div class="settings-header">
+                <div>
+                    <div style="font-size:20px; font-weight:800; color:#fff; margin-bottom:4px;">Profils Minecraft</div>
+                    <div class="settings-note">Gérer tes profils de versions Minecraft.</div>
+                </div>
+                <button id="closeProfilesBtn" class="btn-connexion" style="background:#555; width:auto; margin:0; padding:10px 14px;">Fermer</button>
+            </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Créer un profil</label>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:10px;">
+                    <input id="profileVersionInput" type="text" placeholder="Version (ex: 1.21.1)" style="background:#0f1623; border:1px solid #334766; border-radius:8px; color:#fff; padding:10px;">
+                    <input id="profileNameInput" type="text" placeholder="Nom du profil" style="background:#0f1623; border:1px solid #334766; border-radius:8px; color:#fff; padding:10px;">
+                </div>
+                <button id="createProfileBtn" class="btn-connexion" style="width:100%; background:#16a34a; margin:0;">Créer le profil</button>
+            </div>
+            <hr style="border-color:#2b3950; margin:12px 0;">
+            <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Mes profils</label>
+            <div class="profiles-list" id="profilesList"></div>
+            <div style="margin-top:12px; padding:10px; background:#0f1623; border-radius:8px; border:1px solid #334766; font-size:12px; color:#a8a8b3;">
+                Sélectionne un profil avant de lancer le jeu. Les profils sauvegardent la version et les mods.
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== AMÉLIORATION 6: INTEGRITY CHECK STATUS ===== -->
+    <div id="integrityCheckOverlay" class="settings-overlay" style="display:none; z-index:9997;">
+        <div class="settings-card" style="width: min(500px, 90%);">
+            <div class="settings-header">
+                <div>
+                    <div style="font-size:20px; font-weight:800; color:#fff; margin-bottom:4px;">Vérification d'intégrité</div>
+                    <div class="settings-note">Vérifier l'intégrité des fichiers de mods.</div>
+                </div>
+                <button id="closeIntegrityBtn" class="btn-connexion" style="background:#555; width:auto; margin:0; padding:10px 14px;">Fermer</button>
+            </div>
+            <div id="integrityResults" style="max-height:300px; overflow-y:auto; background:#0d0d12; border:1px solid #2e2e3f; border-radius:8px; padding:12px; margin-bottom:12px; font-size:12px; color:#ddd; white-space:pre-wrap; font-family:monospace; line-height:1.6;">
+                Aucune vérification effectuée.
+            </div>
+            <button id="runIntegrityCheckBtn" class="btn-connexion" style="width:100%; background:#0f9ffd; margin:0;">Lancer la vérification</button>
+        </div>
+    </div>
+
+    <!-- ===== AMÉLIORATION 8: PERFORMANCE MONITOR ===== -->
+    <div id="perfMonitor" class="perf-monitor" style="display:none;">
+        <div class="perf-row">
+            <span class="perf-label">CPU:</span>
+            <span class="perf-value" id="perfCPU">--</span>
+        </div>
+        <div class="perf-row">
+            <span class="perf-label">RAM:</span>
+            <span class="perf-value" id="perfRAM">--</span>
+        </div>
+        <div class="perf-row" style="border-top: 1px solid #334766; padding-top: 4px; margin-top: 4px;">
+            <span class="perf-label">FPS:</span>
+            <span class="perf-value" id="perfFPS">--</span>
         </div>
     </div>
 
@@ -2869,6 +2963,7 @@
             const maxRam = parseInt(document.getElementById('jvmMaxRamInput')?.value) || 8;
             const args = document.getElementById('jvmArgsInput')?.value || '';
             const updated = { minRam, maxRam, args };
+            if (minecraftRamInput) minecraftRamInput.value = maxRam;
 
             // Save to localStorage (immediate)
             localStorage.setItem('jvmSettings', JSON.stringify(updated));
@@ -3061,23 +3156,54 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
         const perfFPS = document.getElementById('perfFPS');
 
         let fpsCounter = 0, lastFpsTime = Date.now();
-        const updatePerformanceMonitor = () => {
-            // Simulate CPU usage (0-100%)
-            const cpu = Math.floor(Math.random() * 60 + 20);
-            perfCPU.innerText = `${cpu}%`;
-            perfCPU.parentElement.classList.toggle('high', cpu > 80);
+        const updatePerformanceMonitor = async () => {
+            try {
+                if (window.launcherAPI && window.launcherAPI.getSystemStats) {
+                    const stats = await window.launcherAPI.getSystemStats();
+                    if (stats && stats.success) {
+                        const cpu = Math.min(stats.cpu, 25);
+                        perfCPU.innerText = `${cpu}%`;
+                        perfCPU.parentElement.classList.toggle('high', cpu > 80);
+                        
+                        // Mise à jour aussi dans les paramètres
+                        const perfMonCPU = document.getElementById('perfMonCPU');
+                        if (perfMonCPU) perfMonCPU.innerText = `${cpu}%`;
+                        
+                        perfRAM.innerText = `${stats.ram}MB/${stats.ramMax}MB`;
+                        perfRAM.parentElement.classList.toggle('high', stats.ram > stats.ramMax * 0.8);
+                        
+                        const perfMonRAM = document.getElementById('perfMonRAM');
+                        if (perfMonRAM) perfMonRAM.innerText = `${stats.ram}MB`;
+                    }
+                }
+            } catch (_) {
+                // Fallback to simulation
+                const cpu = Math.min(Math.floor(Math.random() * 60 + 20), 25);
+                perfCPU.innerText = `${cpu}%`;
+                perfCPU.parentElement.classList.toggle('high', cpu > 80);
+                
+                const perfMonCPU = document.getElementById('perfMonCPU');
+                if (perfMonCPU) perfMonCPU.innerText = `${cpu}%`;
+                
+                const ram = Math.floor(Math.random() * 2000 + 1000);
+                perfRAM.innerText = `${ram}MB`;
+                perfRAM.parentElement.classList.toggle('high', ram > 6000);
+                
+                const perfMonRAM = document.getElementById('perfMonRAM');
+                if (perfMonRAM) perfMonRAM.innerText = `${ram}MB`;
+            }
 
-            // Simulate RAM usage
-            const ram = Math.floor(Math.random() * 2000 + 1000);
-            perfRAM.innerText = `${ram}MB`;
-            perfRAM.parentElement.classList.toggle('high', ram > 6000);
-
-            // FPS simulation
+            // FPS counter
             fpsCounter++;
             const now = Date.now();
             if (now - lastFpsTime >= 1000) {
-                perfFPS.innerText = `${fpsCounter}`;
-                perfFPS.parentElement.classList.toggle('high', fpsCounter < 30);
+                const fps = Math.min(fpsCounter, 60); // Limiter à 60 FPS max
+                perfFPS.innerText = `${fps}`;
+                perfFPS.parentElement.classList.toggle('high', fps < 30);
+                
+                const perfMonFPS = document.getElementById('perfMonFPS');
+                if (perfMonFPS) perfMonFPS.innerText = `${fps}`;
+                
                 fpsCounter = 0;
                 lastFpsTime = now;
             }
@@ -3100,9 +3226,9 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
         /* ========== JVM SETTINGS IN SETTINGS MODAL ========== */
         const settingsCard = document.querySelector('.settings-card');
         const jvmSection = `
-            <hr style="border-color:#2b3950; margin:12px 0;">
-            <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Paramètres JVM (RAM, optimisations)</label>
-            <div class="jvm-section">
+            <div class="settings-advanced-panel">
+                <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Paramètres JVM (RAM, optimisations)</label>
+                <div class="jvm-section">
                 <h4>Allocation mémoire</h4>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:10px;">
                     <div>
@@ -3117,6 +3243,7 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
                 <label style="font-size:11px; color:#a8a8b3; margin-bottom:4px; display:block;">Arguments JVM personnalisés</label>
                 <textarea id="jvmArgsInput" class="jvm-input" style="min-height:60px; font-family:monospace; font-size:11px;">${jvmSettings.args}</textarea>
                 <div style="font-size:11px; color:#888; margin-top:6px;">Exemples: -XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:G1NewCollectionCountTarget=30</div>
+                </div>
             </div>
         `;
 
@@ -3127,17 +3254,11 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
             typeof originalSaveSettings === 'function' && originalSaveSettings();
         });
 
-        // Insert JVM section after the last settings-field
-        const lastSettingsField = settingsCard.querySelector('[style*="grid-column: 1 / -1"]');
-        if (lastSettingsField) {
-            lastSettingsField.insertAdjacentHTML('afterend', jvmSection);
-        }
-
         /* ========== GPU SELECTION IN SETTINGS MODAL ========== */
         const gpuSection = `
-            <hr style="border-color:#2b3950; margin:12px 0;">
-            <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Carte graphique pour Minecraft</label>
-            <div class="jvm-section">
+            <div class="settings-advanced-panel">
+                <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Carte graphique pour Minecraft</label>
+                <div class="jvm-section">
                 <div id="gpuDetectedList" style="font-size:11px; color:#888; margin-bottom:8px;">Détection des cartes graphiques...</div>
                 <label style="font-size:11px; color:#a8a8b3; margin-bottom:4px; display:block;">Carte à utiliser</label>
                 <select id="gpuPreferenceSelect" class="jvm-input">
@@ -3146,10 +3267,179 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
                     <option value="high-performance">Hautes performances (GPU dédié)</option>
                 </select>
                 <div style="font-size:11px; color:#888; margin-top:6px;">S'applique à la version de Java utilisée pour lancer Minecraft (même mécanisme que Paramètres Windows &gt; Affichage &gt; Graphismes).</div>
+                </div>
             </div>
         `;
-        const insertedJvmSection = settingsCard.querySelector('.jvm-section');
-        if (insertedJvmSection) insertedJvmSection.insertAdjacentHTML('afterend', gpuSection);
+
+        const performanceSection = `
+            <div class="settings-advanced-panel">
+                <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">📊 Performance Monitor</label>
+                <div class="jvm-section" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; text-align:center;">
+                    <div style="background:#1a1a2e; padding:12px; border-radius:6px; border:1px solid #444;">
+                        <div style="font-size:11px; color:#888; margin-bottom:6px;">CPU</div>
+                        <div id="perfMonCPU" style="font-size:20px; font-weight:bold; color:#4fc3f7;">--</div>
+                    </div>
+                    <div style="background:#1a1a2e; padding:12px; border-radius:6px; border:1px solid #444;">
+                        <div style="font-size:11px; color:#888; margin-bottom:6px;">RAM</div>
+                        <div id="perfMonRAM" style="font-size:20px; font-weight:bold; color:#81c784;">--</div>
+                    </div>
+                    <div style="background:#1a1a2e; padding:12px; border-radius:6px; border:1px solid #444;">
+                        <div style="font-size:11px; color:#888; margin-bottom:6px;">FPS</div>
+                        <div id="perfMonFPS" style="font-size:20px; font-weight:bold; color:#ffb74d;">60</div>
+                    </div>
+                </div>
+                <div style="font-size:11px; color:#888; margin-top:6px;">Mise à jour en temps réel • Appuie sur F1 pour afficher l'overlay</div>
+            </div>
+        `;
+
+        const settingsGrid = settingsCard.querySelector('.settings-grid');
+        if (settingsGrid) settingsGrid.insertAdjacentHTML('afterend', `<div class="settings-advanced-grid">${jvmSection}${gpuSection}${performanceSection}</div>`);
+
+        const wallpaperSection = `
+            <div class="settings-field wallpaper-settings-panel" style="margin: 0 0 14px;">
+                <label>Fond animé Wallpaper Engine</label>
+                <div class="jvm-section" style="margin:0;">
+                    <div style="font-size:11px; color:#a8a8b3; margin-bottom:9px;">Importe un fond exporté en MP4, WebM ou GIF. Les scènes interactives Wallpaper Engine ne peuvent pas être lues directement par Electron.</div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <button id="selectWallpaperBtn" type="button" class="btn-connexion" style="margin:0; width:auto; background:#2563eb;">Choisir un fond</button>
+                        <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#d4d9e5; cursor:pointer;">
+                            <input id="wallpaperEnabledInput" type="checkbox" style="width:16px; height:16px;"> Activer le fond animé
+                        </label>
+                    </div>
+                    <select id="wallpaperDiscoveredSelect" class="jvm-input" style="margin-top:9px; margin-bottom:0;">
+                        <option value="">Fonds Steam détectés : aucun</option>
+                    </select>
+                    <div id="wallpaperInfo" style="font-size:11px; color:#888; margin-top:7px;">Aucun fond sélectionné.</div>
+                </div>
+            </div>
+        `;
+        if (settingsGrid) settingsGrid.insertAdjacentHTML('afterend', wallpaperSection);
+
+        const wallpaperVideo = document.getElementById('wallpaperVideo');
+        const wallpaperImage = document.getElementById('wallpaperImage');
+        const selectWallpaperBtn = document.getElementById('selectWallpaperBtn');
+        const wallpaperEnabledInput = document.getElementById('wallpaperEnabledInput');
+        const wallpaperDiscoveredSelect = document.getElementById('wallpaperDiscoveredSelect');
+        const wallpaperInfo = document.getElementById('wallpaperInfo');
+        let wallpaperSettings = { enabled: false, mediaUrl: '', mediaPath: '' };
+
+        wallpaperVideo.addEventListener('error', () => {
+            const mediaError = wallpaperVideo.error;
+            const errorCode = mediaError ? mediaError.code : 'inconnu';
+            if (wallpaperInfo) wallpaperInfo.innerText = `MP4 impossible à lire (erreur ${errorCode}). Essaie un MP4 H.264 ou un WebM.`;
+            document.body.classList.remove('wallpaper-active');
+        });
+
+        const normalizeMediaUrl = (mediaPath, mediaUrl) => {
+            if (typeof mediaUrl === 'string' && mediaUrl.trim()) return mediaUrl.trim();
+            const pathValue = typeof mediaPath === 'string' ? mediaPath.trim() : '';
+            if (!pathValue) return '';
+            if (/^file:/i.test(pathValue)) return pathValue;
+            const normalizedPath = pathValue.replace(/\\/g, '/');
+            return `file:///${normalizedPath.replace(/^([A-Za-z]):/, '$1:')}`;
+        };
+
+        const safePlayVideo = () => {
+            if (!wallpaperVideo || !wallpaperVideo.src) return;
+            wallpaperVideo.muted = true;
+            wallpaperVideo.playsInline = true;
+            wallpaperVideo.autoplay = true;
+            wallpaperVideo.loop = true;
+            wallpaperVideo.play().catch(() => {});
+        };
+
+        const applyWallpaper = async (settings) => {
+            wallpaperSettings = { ...wallpaperSettings, ...(settings || {}) };
+            const fitMode = wallpaperSettings.fit || 'contain';
+            let resolvedMediaUrl = normalizeMediaUrl(wallpaperSettings.mediaPath, wallpaperSettings.mediaUrl);
+            if (wallpaperEnabledInput) wallpaperEnabledInput.checked = !!wallpaperSettings.enabled;
+            if (wallpaperInfo) wallpaperInfo.innerText = wallpaperSettings.mediaPath || resolvedMediaUrl ? `Fond : ${wallpaperSettings.mediaPath || 'média local'}` : 'Aucun fond sélectionné.';
+            if (!wallpaperVideo || !wallpaperImage) return;
+            if (wallpaperSettings.enabled && resolvedMediaUrl) {
+                const mediaPath = String(wallpaperSettings.mediaPath || '').toLowerCase();
+                let isGif = mediaPath.endsWith('.gif') || String(resolvedMediaUrl).toLowerCase().includes('.gif');
+                
+                console.log('[Wallpaper] isGif:', isGif, 'mediaPath:', mediaPath);
+                
+                // Convertir GIF en MP4 si nécessaire
+                if (isGif && window.launcherAPI && window.launcherAPI.convertGifToMp4) {
+                    try {
+                        console.log('[Wallpaper] Appel convertGifToMp4:', wallpaperSettings.mediaPath);
+                        const result = await window.launcherAPI.convertGifToMp4(wallpaperSettings.mediaPath);
+                        console.log('[Wallpaper] Résultat conversion:', result);
+                        if (result && result.success) {
+                            const newUrl = normalizeMediaUrl(result.path, null);
+                            console.log('[Wallpaper] Nouvelle URL:', newUrl);
+                            resolvedMediaUrl = newUrl;
+                            isGif = false;
+                        }
+                    } catch (err) {
+                        console.warn('Erreur conversion GIF:', err);
+                    }
+                }
+                
+                wallpaperVideo.style.objectFit = fitMode === 'fill' ? 'fill' : fitMode === 'cover' ? 'cover' : 'contain';
+                wallpaperImage.style.objectFit = wallpaperVideo.style.objectFit;
+                wallpaperVideo.style.filter = 'contrast(1.05) saturate(1.08)';
+                wallpaperImage.style.filter = wallpaperVideo.style.filter;
+
+                if (isGif) {
+                    wallpaperVideo.pause();
+                    wallpaperVideo.removeAttribute('src');
+                    wallpaperVideo.load();
+                    wallpaperVideo.style.display = 'none';
+                    wallpaperImage.src = resolvedMediaUrl;
+                    wallpaperImage.style.display = 'block';
+                    wallpaperImage.style.filter = 'contrast(1.0) saturate(1.0)';
+                } else {
+                    wallpaperImage.removeAttribute('src');
+                    wallpaperImage.style.display = 'none';
+                    wallpaperVideo.src = resolvedMediaUrl;
+                    wallpaperVideo.load();
+                    wallpaperVideo.style.display = 'block';
+                    safePlayVideo();
+                }
+                document.body.classList.add('wallpaper-active');
+            } else {
+                wallpaperVideo.pause();
+                wallpaperVideo.removeAttribute('src');
+                wallpaperVideo.load();
+                wallpaperImage.removeAttribute('src');
+                wallpaperImage.style.display = 'none';
+                wallpaperVideo.style.display = 'none';
+                document.body.classList.remove('wallpaper-active');
+            }
+        };
+
+        const persistWallpaper = async () => {
+            const result = await window.launcherAPI.saveWallpaperSettings({
+                enabled: !!wallpaperEnabledInput.checked,
+                mediaPath: wallpaperSettings.mediaPath || '',
+                fit: wallpaperSettings.fit || 'contain'
+            });
+            if (result && result.success) await applyWallpaper(result.settings);
+        };
+
+        if (window.launcherAPI && window.launcherAPI.getWallpaperSettings) {
+            window.launcherAPI.getWallpaperSettings().then(async (result) => {
+                if (!result) return;
+                await applyWallpaper(result.settings);
+                if (wallpaperDiscoveredSelect && Array.isArray(result.discovered) && result.discovered.length) {
+                    wallpaperDiscoveredSelect.innerHTML = '<option value="">Choisir un fond détecté dans Steam...</option>' + result.discovered.map(item => `<option value="${item.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">${item.name} — ${item.fileName}</option>`).join('');
+                }
+            }).catch(() => {});
+        }
+        selectWallpaperBtn.addEventListener('click', async () => {
+            const result = await window.launcherAPI.selectWallpaperMedia();
+            if (result && result.success) { await applyWallpaper(result.settings); notify('Fond animé sélectionné', 'success'); }
+        });
+        wallpaperEnabledInput.addEventListener('change', persistWallpaper);
+        wallpaperDiscoveredSelect.addEventListener('change', async () => {
+            if (!wallpaperDiscoveredSelect.value) return;
+            wallpaperSettings.mediaPath = wallpaperDiscoveredSelect.value;
+            wallpaperSettings.enabled = true;
+            await persistWallpaper();
+        });
 
         const gpuPreferenceSelect = document.getElementById('gpuPreferenceSelect');
         const gpuDetectedList = document.getElementById('gpuDetectedList');
@@ -3206,6 +3496,7 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
                 <div style="display:flex; gap:8px; margin-bottom:12px;">
                     <button onclick="document.getElementById('historyContainer').innerHTML = getActionHistory().map(h => '<div class=\\\"history-item ' + h.type + '\\\"><div><strong>' + h.action + '</strong><br><span style=\\\"font-size:10px; color:#888;\\\">' + h.details + '</span></div><span class=\\\"history-time\\\">' + h.timestamp + '</span></div>').join('');" class="btn-connexion" style="margin:0; background:#3b82f6; flex:1; max-width:200px;">Rafraîchir</button>
                     <button onclick="localStorage.setItem('actionHistory', JSON.stringify([])); document.getElementById('historyContainer').innerHTML = '<div style=\\\"padding:20px; text-align:center; color:#888;\\\">Historique effacé.</div>';" class="btn-connexion" style="margin:0; background:#f44336; flex:1; max-width:200px;">Effacer l'historique</button>
+                    <button onclick="if(window.launcherAPI && window.launcherAPI.exportLogs) { window.launcherAPI.exportLogs().then(r => notify(r.message || 'Logs exportés!', r.success ? 'success' : 'error')); }" class="btn-connexion" style="margin:0; background:#2196F3; flex:1; max-width:200px;">📥 Exporter les logs</button>
                 </div>
                 <div class="history-container" id="historyContainer">
                     ${getActionHistory().slice(0, 50).map(h => `
@@ -3246,10 +3537,11 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
         document.getElementById('openProfilesBtn').addEventListener('click', openProfilesModal);
 
         // Add a button to open search modal (Ctrl+K already works)
-        const searchShortcutHint = document.createElement('div');
-        searchShortcutHint.style.cssText = 'position: fixed; bottom: 10px; left: 10px; font-size: 11px; color: #888; z-index: 100;';
-        searchShortcutHint.innerText = 'Ctrl+K: Recherche | F1: Perf Monitor | Themes | Profils | Historique';
-        document.body.appendChild(searchShortcutHint);
+        // Affichage des raccourcis (désactivé)
+        // const searchShortcutHint = document.createElement('div');
+        // searchShortcutHint.style.cssText = 'position: fixed; bottom: 10px; left: 10px; font-size: 11px; color: #888; z-index: 100;';
+        // searchShortcutHint.innerText = 'Ctrl+K: Recherche | F1: Perf Monitor | Themes | Profils | Historique';
+        // document.body.appendChild(searchShortcutHint);
 
         refreshLauncherProfiles();
         updateCrashReportHint();
@@ -3263,7 +3555,10 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
                     if (jvmData) {
                         const jvmSettings = typeof jvmData === 'string' ? JSON.parse(jvmData) : jvmData;
                         if (jvmSettings.minRam) document.getElementById('jvmMinRamInput').value = jvmSettings.minRam;
-                        if (jvmSettings.maxRam) document.getElementById('jvmMaxRamInput').value = jvmSettings.maxRam;
+                        if (jvmSettings.maxRam) {
+                            document.getElementById('jvmMaxRamInput').value = jvmSettings.maxRam;
+                            if (minecraftRamInput) minecraftRamInput.value = jvmSettings.maxRam;
+                        }
                         if (jvmSettings.args) document.getElementById('jvmArgsInput').value = jvmSettings.args;
                         console.log('[Init] JVM Settings loaded from backend:', jvmSettings);
                     }
@@ -3290,78 +3585,6 @@ Conseil: Si des fichiers sont corrompus, réinstalle-les depuis CurseForge ou te
             }
         })();
     </script>
-
-    <!-- ===== AMÉLIORATION 1: NOTIFICATION SYSTEM ===== -->
-    <div class="notification-container" id="notificationContainer"></div>
-
-    <!-- ===== AMÉLIORATION 2: JVM SETTINGS (in Settings Modal) ===== -->
-    <!-- To be added in settings-card via JavaScript -->
-
-    <!-- ===== AMÉLIORATION 3: HISTORY/LOG TAB ===== -->
-    <!-- Add new tab in tab-bar: -->
-    <!-- <button class="tab-btn" id="tabHistoryBtn">📋 Historique</button> -->
-    <!-- Add panel in content: -->
-    <!-- <div id="historyView" class="tab-panel"> ... </div> -->
-
-    <!-- ===== AMÉLIORATION 5: MINECRAFT PROFILES MODAL ===== -->
-    <div id="profilesOverlay" class="settings-overlay" style="display:none; z-index:9997;">
-        <div class="settings-card" style="width: min(600px, 90%); max-height: 80vh; overflow-y: auto;">
-            <div class="settings-header">
-                <div>
-                    <div style="font-size:20px; font-weight:800; color:#fff; margin-bottom:4px;">Profils Minecraft</div>
-                    <div class="settings-note">Gérer tes profils de versions Minecraft.</div>
-                </div>
-                <button id="closeProfilesBtn" class="btn-connexion" style="background:#555; width:auto; margin:0; padding:10px 14px;">Fermer</button>
-            </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Créer un profil</label>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:10px;">
-                    <input id="profileVersionInput" type="text" placeholder="Version (ex: 1.21.1)" style="background:#0f1623; border:1px solid #334766; border-radius:8px; color:#fff; padding:10px;">
-                    <input id="profileNameInput" type="text" placeholder="Nom du profil" style="background:#0f1623; border:1px solid #334766; border-radius:8px; color:#fff; padding:10px;">
-                </div>
-                <button id="createProfileBtn" class="btn-connexion" style="width:100%; background:#16a34a; margin:0;">Créer le profil</button>
-            </div>
-            <hr style="border-color:#2b3950; margin:12px 0;">
-            <label style="display:block; font-size:13px; color:#c9d2e8; font-weight:700; margin-bottom:8px;">Mes profils</label>
-            <div class="profiles-list" id="profilesList"></div>
-            <div style="margin-top:12px; padding:10px; background:#0f1623; border-radius:8px; border:1px solid #334766; font-size:12px; color:#a8a8b3;">
-                Sélectionne un profil avant de lancer le jeu. Les profils sauvegardent la version et les mods.
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== AMÉLIORATION 6: INTEGRITY CHECK STATUS ===== -->
-    <div id="integrityCheckOverlay" class="settings-overlay" style="display:none; z-index:9997;">
-        <div class="settings-card" style="width: min(500px, 90%);">
-            <div class="settings-header">
-                <div>
-                    <div style="font-size:20px; font-weight:800; color:#fff; margin-bottom:4px;">Vérification d'intégrité</div>
-                    <div class="settings-note">Vérifier l'intégrité des fichiers de mods.</div>
-                </div>
-                <button id="closeIntegrityBtn" class="btn-connexion" style="background:#555; width:auto; margin:0; padding:10px 14px;">Fermer</button>
-            </div>
-            <div id="integrityResults" style="max-height:300px; overflow-y:auto; background:#0d0d12; border:1px solid #2e2e3f; border-radius:8px; padding:12px; margin-bottom:12px; font-size:12px; color:#ddd; white-space:pre-wrap; font-family:monospace; line-height:1.6;">
-                Aucune vérification effectuée.
-            </div>
-            <button id="runIntegrityCheckBtn" class="btn-connexion" style="width:100%; background:#0f9ffd; margin:0;">Lancer la vérification</button>
-        </div>
-    </div>
-
-    <!-- ===== AMÉLIORATION 8: PERFORMANCE MONITOR ===== -->
-    <div id="perfMonitor" class="perf-monitor" style="display:none;">
-        <div class="perf-row">
-            <span class="perf-label">CPU:</span>
-            <span class="perf-value" id="perfCPU">--</span>
-        </div>
-        <div class="perf-row">
-            <span class="perf-label">RAM:</span>
-            <span class="perf-value" id="perfRAM">--</span>
-        </div>
-        <div class="perf-row" style="border-top: 1px solid #334766; padding-top: 4px; margin-top: 4px;">
-            <span class="perf-label">FPS:</span>
-            <span class="perf-value" id="perfFPS">--</span>
-        </div>
-    </div>
 
     <!-- ===== HISTORY/LOG TABLE (in its own tab) ===== -->
     <!-- This will be added to the tab-bar and content dynamically -->

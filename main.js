@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const os = require('os');
 const http = require('http');
 const { spawn, spawnSync } = require('child_process');
+const { pathToFileURL } = require('url');
 const axios = require('axios');
 const unzipper = require('unzipper');
 const archiver = require('archiver');
@@ -33,6 +34,7 @@ const launcherSkinFilePath = path.join(launcherDataPath, 'launcher_skin.json');
 const launcherBackupsPath = path.join(launcherDataPath, 'backups');
 const jvmSettingsFilePath = path.join(launcherDataPath, 'jvm_settings.json');
 const actionHistoryFilePath = path.join(launcherDataPath, 'action_history.json');
+const wallpaperSettingsFilePath = path.join(launcherDataPath, 'wallpaper_settings.json');
 const gpuSettingsFilePath = path.join(launcherDataPath, 'gpu_settings.json');
 const ownerCurseForgeKeyPath = path.join(__dirname, 'owner_curseforge_key.txt');
 // Secrets are kept out of source control; see main.secrets.example.json
@@ -127,6 +129,281 @@ function writeLauncherSettings(rawSettings) {
     ensureLauncherDataDirectories();
     fs.writeFileSync(launcherSettingsFilePath, JSON.stringify(normalized, null, 2), 'utf-8');
     return normalized;
+}
+
+function readWallpaperSettings() {
+    ensureLauncherDataDirectories();
+    if (!fs.existsSync(wallpaperSettingsFilePath)) return { enabled: false, mediaPath: '', fit: 'contain' };
+    try {
+        const raw = JSON.parse(fs.readFileSync(wallpaperSettingsFilePath, 'utf-8'));
+        const mediaPath = typeof raw.mediaPath === 'string' && fs.existsSync(raw.mediaPath) ? raw.mediaPath : '';
+        const fit = ['cover', 'contain', 'fill'].includes(raw.fit) ? raw.fit : 'contain';
+        return { enabled: !!raw.enabled && !!mediaPath, mediaPath, fit };
+    } catch (_) {
+        return { enabled: false, mediaPath: '', fit: 'contain' };
+    }
+}
+
+function writeWallpaperSettings(payload = {}) {
+    const mediaPath = typeof payload.mediaPath === 'string' && fs.existsSync(payload.mediaPath) ? payload.mediaPath : '';
+    const fit = ['cover', 'contain', 'fill'].includes(payload.fit) ? payload.fit : 'contain';
+    const settings = { enabled: !!payload.enabled && !!mediaPath, mediaPath, fit };
+    ensureLauncherDataDirectories();
+    fs.writeFileSync(wallpaperSettingsFilePath, JSON.stringify(settings, null, 2), 'utf-8');
+    return settings;
+}
+
+function validateLauncherIntegrity() {
+    const issues = [];
+    
+    try {
+        // Vérifier les fichiers de config
+        if (!fs.existsSync(launcherSettingsFilePath)) {
+            issues.push({ type: 'warning', msg: 'Fichier settings manquant - création en cours' });
+            writeDefaultLauncherSettings();
+        }
+        
+        if (!fs.existsSync(wallpaperSettingsFilePath)) {
+            issues.push({ type: 'warning', msg: 'Fichier wallpaper config manquant' });
+        }
+        
+        if (!fs.existsSync(jvmSettingsFilePath)) {
+            issues.push({ type: 'warning', msg: 'Fichier JVM settings manquant - création en cours' });
+            writeDefaultJVMSettings();
+        }
+        
+        // Vérifier l'espace disque
+        const convertedDir = path.join(launcherDataPath, 'wallpaper_converted');
+        if (fs.existsSync(convertedDir)) {
+            const files = fs.readdirSync(convertedDir);
+            let totalSize = 0;
+            files.forEach(file => {
+                try {
+                    totalSize += fs.statSync(path.join(convertedDir, file)).size;
+                } catch (_) {}
+            });
+            const sizeInMB = (totalSize / 1024 / 1024).toFixed(2);
+            if (totalSize > 500 * 1024 * 1024) { // 500MB
+                issues.push({ type: 'warning', msg: `Cache GIF volumineux: ${sizeInMB}MB - nettoyage recommandé` });
+            }
+        }
+        
+        if (issues.length > 0) {
+            console.log('[Validation] Issues détectées:', issues);
+        } else {
+            console.log('[Validation] ✓ Intégrité OK');
+        }
+        
+        return issues;
+    } catch (err) {
+        console.error('[Validation] Erreur:', err);
+        return [{ type: 'error', msg: 'Erreur validation: ' + err.message }];
+    }
+}
+
+function writeDefaultLauncherSettings() {
+    const defaults = {
+        theme: 'dark',
+        notifications: true,
+        compactMode: false,
+        autoUpdateCheck: true
+    };
+    writeDefaultSettings(launcherSettingsFilePath, defaults);
+}
+
+function writeDefaultJVMSettings() {
+    const defaults = {
+        minRam: 2048,
+        maxRam: 4096,
+        jvmArgs: '-XX:+UseG1GC -XX:MaxGCPauseMillis=200'
+    };
+    writeDefaultSettings(jvmSettingsFilePath, defaults);
+}
+
+function writeDefaultSettings(filePath, defaults) {
+    try {
+        fs.writeFileSync(filePath, JSON.stringify(defaults, null, 2), 'utf-8');
+    } catch (_) {}
+}
+
+function cleanupOldConversions() {
+    try {
+        const convertedDir = path.join(launcherDataPath, 'wallpaper_converted');
+        if (!fs.existsSync(convertedDir)) return;
+        
+        const files = fs.readdirSync(convertedDir);
+        const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours
+        const now = Date.now();
+        let deleted = 0;
+        
+        files.forEach(file => {
+            const fullPath = path.join(convertedDir, file);
+            try {
+                const stats = fs.statSync(fullPath);
+                if (now - stats.mtime.getTime() > maxAge) {
+                    fs.unlinkSync(fullPath);
+                    deleted++;
+                }
+            } catch (_) {}
+        });
+        
+        if (deleted > 0) {
+            console.log(`[Cleanup] ${deleted} fichiers MP4 convertis supprimés (>7 jours)`);
+        }
+    } catch (err) {
+        console.error('[Cleanup] Erreur:', err.message);
+    }
+}
+
+function ensureFfmpegAvailable() {
+    try {
+        // Essayer ffmpeg dans le PATH
+        const result = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore', windowsHide: true });
+        if (result.status === 0) {
+            console.log('[GIF] FFmpeg trouvé dans PATH');
+            return 'ffmpeg';
+        }
+    } catch (_) {}
+    
+    // Chercher ffmpeg dans les emplacements courants
+    const possiblePaths = [
+        path.join(process.env.LOCALAPPDATA || '', 'DVDVideoSoft', 'lib', 'ffmpeg.exe'),
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'icat', 'resources', 'bin', 'ffmpeg', 'ffmpeg.exe'),
+        path.join(process.env.LOCALAPPDATA || '', 'Overwolf', 'Extensions', 'ncfplpkmiejjaklknfnkgcpapnhkggmlcppckhcb', '270.0.25', 'obs', 'bin', '64bit', 'ffmpeg.exe'),
+        'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
+        'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe',
+        'C:\\ffmpeg\\bin\\ffmpeg.exe',
+        path.join(process.env.APPDATA || '', '..', 'Local', 'Programs', 'ffmpeg', 'bin', 'ffmpeg.exe'),
+        path.join(launcherDataPath, 'ffmpeg', 'ffmpeg.exe')
+    ];
+    
+    for (const ffmpegPath of possiblePaths) {
+        try {
+            if (fs.existsSync(ffmpegPath)) {
+                console.log('[GIF] FFmpeg trouvé à:', ffmpegPath);
+                return ffmpegPath;
+            }
+        } catch (_) {}
+    }
+    
+    console.warn('[GIF] FFmpeg non trouvé. Installe-le depuis https://ffmpeg.org/download.html');
+    return false;
+}
+
+function maybeConvertGifToMp4(mediaPath) {
+    const ext = String(mediaPath || '').toLowerCase();
+    if (!mediaPath || !ext.endsWith('.gif')) return mediaPath;
+    
+    const ffmpegPath = ensureFfmpegAvailable();
+    if (!ffmpegPath) {
+        console.warn('[GIF] FFmpeg non disponible');
+        return mediaPath;
+    }
+
+    try {
+        const convertedDir = path.join(launcherDataPath, 'wallpaper_converted');
+        ensureDirectory(convertedDir);
+        
+        // Nettoyer les anciens fichiers convertis de ce GIF
+        const baseName = path.basename(mediaPath, path.extname(mediaPath));
+        try {
+            const files = fs.readdirSync(convertedDir);
+            files.forEach(file => {
+                if (file.startsWith(baseName + '-')) {
+                    const oldPath = path.join(convertedDir, file);
+                    try { fs.unlinkSync(oldPath); } catch (_) {}
+                }
+            });
+        } catch (_) {}
+        
+        const outPath = path.join(convertedDir, `${baseName}-${Date.now()}.mp4`);
+        console.log('[GIF] Conversion:', mediaPath, '→', outPath);
+        
+        const result = spawnSync(typeof ffmpegPath === 'string' ? ffmpegPath : 'ffmpeg', [
+            '-y',
+            '-i', mediaPath,
+            '-c:v', 'libx264',
+            '-crf', '18',
+            '-b:v', '4000k',
+            '-maxrate', '6000k',
+            '-bufsize', '10000k',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
+            outPath
+        ], { stdio: 'pipe', windowsHide: true });
+
+        if (result.status === 0 && fs.existsSync(outPath)) {
+            const size = fs.statSync(outPath).size;
+            console.log('[GIF] ✓ Conversion réussie:', size, 'bytes');
+            return outPath;
+        } else {
+            console.error('[GIF] ✗ Erreur conversion (status:', result.status + ')');
+            if (result.stderr) console.error('[GIF] Stderr:', result.stderr.toString());
+        }
+    } catch (err) {
+        console.error('[GIF] Exception:', err.message);
+    }
+
+    return mediaPath;
+}
+
+function findWallpaperMedia() {
+    if (process.platform !== 'win32') return [];
+    const steamRoots = [
+        process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)'], 'Steam'),
+        process.env.ProgramFiles && path.join(process.env.ProgramFiles, 'Steam'),
+        process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Steam')
+    ].filter(Boolean);
+
+    const roots = [];
+    for (const root of steamRoots) {
+        roots.push(path.join(root, 'steamapps', 'workshop', 'content', '431960'));
+        roots.push(path.join(root, 'steamapps', 'common', 'Wallpaper Engine', 'projects'));
+        roots.push(path.join(root, 'steamapps', 'common', 'Wallpaper Engine'));
+        roots.push(path.join(root, 'userdata'));
+    }
+
+    const results = [];
+    const extensions = new Set(['.mp4', '.webm', '.m4v']);
+    const visit = (dir, depth) => {
+        if (depth > 6 || results.length >= 200 || !fs.existsSync(dir)) return;
+        let entries;
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) visit(fullPath, depth + 1);
+            else if (extensions.has(path.extname(entry.name).toLowerCase())) results.push(fullPath);
+            if (results.length >= 200) break;
+        }
+    };
+
+    roots.forEach(root => visit(root, 0));
+
+    const gifFallbacks = [];
+    for (const root of roots) {
+        if (!fs.existsSync(root)) continue;
+        const walkGifs = (dir, depth) => {
+            if (depth > 6 || !fs.existsSync(dir)) return;
+            let entries;
+            try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) walkGifs(fullPath, depth + 1);
+                else if (path.extname(entry.name).toLowerCase() === '.gif') gifFallbacks.push(fullPath);
+            }
+        };
+        walkGifs(root, 0);
+    }
+
+    return [...new Set([...results, ...gifFallbacks])].sort((a, b) => {
+        const order = { '.webm': 4, '.mp4': 4, '.m4v': 3, '.gif': 1 };
+        const extA = order[path.extname(a).toLowerCase()] || 0;
+        const extB = order[path.extname(b).toLowerCase()] || 0;
+        if (extA !== extB) return extB - extA;
+        const sizeA = fs.existsSync(a) ? fs.statSync(a).size : 0;
+        const sizeB = fs.existsSync(b) ? fs.statSync(b).size : 0;
+        return sizeB - sizeA;
+    });
 }
 
 /* ===== JVM SETTINGS MANAGEMENT ===== */
@@ -760,7 +1037,11 @@ function createWindow() {
     });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    validateLauncherIntegrity();
+    cleanupOldConversions();
+    createWindow();
+});
 
 // Serveur HTTP pour Discord OAuth callback
 const discordCallbackServer = http.createServer((req, res) => {
@@ -2227,6 +2508,116 @@ ipcMain.handle('save-launcher-settings', async (event, payload = {}) => {
     }
 });
 
+ipcMain.handle('get-wallpaper-settings', async () => {
+    const settings = readWallpaperSettings();
+    return {
+        success: true,
+        settings: { ...settings, mediaUrl: settings.mediaPath ? pathToFileURL(settings.mediaPath).href : '' },
+        discovered: findWallpaperMedia().map(mediaPath => ({
+            name: path.basename(path.dirname(mediaPath)),
+            fileName: path.basename(mediaPath),
+            path: mediaPath,
+            url: pathToFileURL(mediaPath).href
+        }))
+    };
+});
+
+ipcMain.handle('convert-gif-to-mp4', async (event, mediaPath) => {
+    console.log('[GIF IPC] Reçu:', mediaPath);
+    
+    if (!mediaPath || !String(mediaPath).toLowerCase().endsWith('.gif')) {
+        console.log('[GIF IPC] Pas un GIF, retour:', mediaPath);
+        return { success: false, path: mediaPath };
+    }
+    try {
+        console.log('[GIF IPC] Conversion de:', mediaPath);
+        const convertedPath = maybeConvertGifToMp4(mediaPath);
+        const success = convertedPath !== mediaPath;
+        console.log('[GIF IPC] Résultat - Success:', success, 'Path:', convertedPath);
+        return { success: success, path: convertedPath, isConverted: success };
+    } catch (err) {
+        console.error('[GIF IPC] Exception:', err);
+        return { success: false, path: mediaPath, error: err && err.message ? err.message : String(err) };
+    }
+});
+
+ipcMain.handle('export-logs', async () => {
+    try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const logsPath = path.join(launcherDataPath, `launcher-logs-${timestamp}.txt`);
+        const actionHistoryPath = path.join(launcherDataPath, 'actionHistory.json');
+        
+        let content = `=== LAUNCHER LOGS EXPORT ===\nDate: ${new Date().toISOString()}\n\n`;
+        
+        // Ajouter l'historique des actions
+        if (fs.existsSync(actionHistoryPath)) {
+            try {
+                const history = JSON.parse(fs.readFileSync(actionHistoryPath, 'utf-8'));
+                content += `=== ACTION HISTORY (${history.length} entries) ===\n`;
+                history.forEach(entry => {
+                    content += `[${entry.timestamp || 'N/A'}] ${entry.action} - ${entry.status}\n`;
+                    if (entry.details) content += `  Details: ${entry.details}\n`;
+                });
+                content += '\n';
+            } catch (_) {}
+        }
+        
+        // Ajouter les settings
+        const launcherSettings = readLauncherSettings();
+        content += `=== LAUNCHER SETTINGS ===\n${JSON.stringify(launcherSettings, null, 2)}\n\n`;
+        
+        const jvmSettings = readJVMSettings();
+        content += `=== JVM SETTINGS ===\n${JSON.stringify(jvmSettings, null, 2)}\n\n`;
+        
+        fs.writeFileSync(logsPath, content, 'utf-8');
+        console.log('[Export] Logs exportés à:', logsPath);
+        
+        return { success: true, path: logsPath, message: `Logs exportés: ${logsPath}` };
+    } catch (err) {
+        console.error('[Export] Erreur:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('get-system-stats', async () => {
+    try {
+        const cpuUsage = process.cpuUsage();
+        const memUsage = process.memoryUsage();
+        
+        return {
+            success: true,
+            cpu: Math.min(100, Math.round((cpuUsage.user + cpuUsage.system) / 10000000 * 100)),
+            ram: Math.round(memUsage.heapUsed / 1024 / 1024),
+            ramMax: Math.round(memUsage.heapTotal / 1024 / 1024),
+            platform: process.platform,
+            uptime: Math.round(process.uptime())
+        };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('select-wallpaper-media', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: 'Choisir un fond animé',
+        properties: ['openFile'],
+        filters: [{ name: 'Fonds animés', extensions: ['mp4', 'webm', 'gif', 'm4v'] }]
+    });
+    if (result.canceled || !result.filePaths[0]) return { success: false, canceled: true };
+    const mediaPath = result.filePaths[0];
+    const settings = writeWallpaperSettings({ enabled: true, mediaPath });
+    return { success: true, settings: { ...settings, mediaUrl: pathToFileURL(mediaPath).href } };
+});
+
+ipcMain.handle('save-wallpaper-settings', async (event, payload = {}) => {
+    try {
+        const settings = writeWallpaperSettings(payload);
+        return { success: true, settings: { ...settings, mediaUrl: settings.mediaPath ? pathToFileURL(settings.mediaPath).href : '' } };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+});
+
 ipcMain.handle('get-launcher-profiles', async () => {
     try {
         return { success: true, profiles: readLauncherProfiles() };
@@ -3006,33 +3397,6 @@ ipcMain.handle('clear-action-history', async () => {
         fs.writeFileSync(actionHistoryFilePath, JSON.stringify([], null, 2), 'utf-8');
         if (mainWindow) mainWindow.webContents.send('launcher-log', 'Historique des actions effacé');
         return { success: true };
-    } catch (err) {
-        return { success: false, error: err.message };
-    }
-});
-
-// Performance monitor data (simulated)
-ipcMain.handle('get-system-stats', async () => {
-    try {
-        const cpus = os.cpus().length;
-        const totalMem = os.totalmem();
-        const freeMem = os.freemem();
-        const usedMem = totalMem - freeMem;
-
-        return {
-            success: true,
-            cpu: {
-                cores: cpus,
-                model: cpus > 0 ? os.cpus()[0].model : 'Unknown'
-            },
-            memory: {
-                total: Math.round(totalMem / 1024 / 1024 / 1024),
-                used: Math.round(usedMem / 1024 / 1024 / 1024),
-                free: Math.round(freeMem / 1024 / 1024 / 1024),
-                percentage: Math.round((usedMem / totalMem) * 100)
-            },
-            platform: process.platform
-        };
     } catch (err) {
         return { success: false, error: err.message };
     }

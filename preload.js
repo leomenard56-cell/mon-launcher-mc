@@ -27,9 +27,15 @@ contextBridge.exposeInMainWorld('launcherAPI', {
     verifyLauncherIntegrity: () => ipcRenderer.invoke('verify-launcher-integrity'),
     getLauncherSettings: () => ipcRenderer.invoke('get-launcher-settings'),
     saveLauncherSettings: (payload) => ipcRenderer.invoke('save-launcher-settings', payload),
+    getWallpaperSettings: () => ipcRenderer.invoke('get-wallpaper-settings'),
+    selectWallpaperMedia: () => ipcRenderer.invoke('select-wallpaper-media'),
+    saveWallpaperSettings: (payload) => ipcRenderer.invoke('save-wallpaper-settings', payload),
+    convertGifToMp4: (mediaPath) => ipcRenderer.invoke('convert-gif-to-mp4', mediaPath),
     fetchImageDataUrl: (payload) => ipcRenderer.invoke('fetch-image-data-url', payload),
     saveLauncherSkin: (payload) => ipcRenderer.invoke('save-launcher-skin', payload),
     getLauncherSkin: () => ipcRenderer.invoke('get-launcher-skin'),
+    exportLogs: () => ipcRenderer.invoke('export-logs'),
+    getSystemStats: () => ipcRenderer.invoke('get-system-stats'),
 
     // Fonctions de connexion
     setAuthData: (data) => ipcRenderer.invoke('set-auth', data),
