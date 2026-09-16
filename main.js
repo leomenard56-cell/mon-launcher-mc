@@ -1037,9 +1037,11 @@ function createWindow() {
     });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     validateLauncherIntegrity();
     cleanupOldConversions();
+    // Restaurer la session Microsoft/Ely au démarrage pour ne pas redemander la connexion
+    await restoreSavedAuthProfile();
     createWindow();
 });
 
