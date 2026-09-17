@@ -3144,20 +3144,14 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
         const restoredAuth = await restoreSavedAuthProfile();
         if (restoredAuth && restoredAuth.type === 'microsoft') {
             mainWindow.webContents.send('launcher-log', `Session Microsoft rafraîchie pour ${restoredAuth.name}.`);
-            // IMPORTANT: Restaurer aussi userAuth du format activeAuths
-            if (activeAuths.microsoft && activeAuths.microsoft.name) {
-                userAuth = { name: activeAuths.microsoft.name, uuid: null };
-            }
+            // userAuth est déjà défini par restoreSavedAuthProfile()
+            // Il contient le token Minecraft via token.mclc()
         } else if (restoredAuth && restoredAuth.type === 'ely') {
             mainWindow.webContents.send('launcher-log', `Session Ely.by rafraîchie pour ${restoredAuth.name}.`);
-            if (activeAuths.ely && activeAuths.ely.name) {
-                userAuth = { name: activeAuths.ely.name, uuid: null };
-            }
+            // userAuth est déjà défini par restoreSavedAuthProfile()
         } else if (restoredAuth && restoredAuth.type === 'crack') {
             mainWindow.webContents.send('launcher-log', `Mode hors-ligne restauré pour ${restoredAuth.name}.`);
-            if (activeAuths.crack && activeAuths.crack.name) {
-                userAuth = Authenticator.getAuth(activeAuths.crack.pseudo);
-            }
+            // userAuth est déjà défini par restoreSavedAuthProfile()
         }
     } catch (authRefreshErr) {
         userAuth = null;
