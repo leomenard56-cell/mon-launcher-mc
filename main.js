@@ -222,9 +222,9 @@ function writeDefaultLauncherSettings() {
 
 function writeDefaultJVMSettings() {
     const defaults = {
-        minRam: 2048,
-        maxRam: 4096,
-        jvmArgs: '-XX:+UseG1GC -XX:MaxGCPauseMillis=200'
+        minRam: 2,
+        maxRam: 4,
+        args: '-XX:+UseG1GC -XX:MaxGCPauseMillis=200'
     };
     writeDefaultSettings(jvmSettingsFilePath, defaults);
 }
@@ -418,14 +418,22 @@ function findWallpaperMedia() {
 /* ===== JVM SETTINGS MANAGEMENT ===== */
 function readJVMSettings() {
     ensureLauncherDataDirectories();
-    if (!fs.existsSync(jvmSettingsFilePath)) {
-        return { minRam: 2, maxRam: 8, args: '-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions' };
+    const defaults = { minRam: 2, maxRam: 8, args: '-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions' };
+    let raw = null;
+    if (fs.existsSync(jvmSettingsFilePath)) {
+        try { raw = JSON.parse(fs.readFileSync(jvmSettingsFilePath, 'utf-8')); } catch (_) { raw = null; }
     }
-    try {
-        return JSON.parse(fs.readFileSync(jvmSettingsFilePath, 'utf-8'));
-    } catch (_) {
-        return { minRam: 2, maxRam: 8, args: '' };
-    }
+    if (!raw || typeof raw !== 'object') raw = {};
+    // Compatibilité: d'anciennes versions stockaient minRam/maxRam en Mo (2048/4096) et la clé 'jvmArgs'
+    const toGb = (value, fallback) => {
+        let n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) return fallback;
+        if (n > 64) n = Math.round(n / 1024); // valeur héritée en Mo
+        return Math.min(32, Math.max(1, n));
+    };
+    const args = typeof raw.args === 'string' && raw.args.trim() ? raw.args
+        : (typeof raw.jvmArgs === 'string' && raw.jvmArgs.trim() ? raw.jvmArgs : defaults.args);
+    return { minRam: toGb(raw.minRam, defaults.minRam), maxRam: toGb(raw.maxRam, defaults.maxRam), args };
 }
 
 function writeJVMSettings(settings) {
@@ -437,8 +445,7 @@ function writeJVMSettings(settings) {
 function buildJVMArguments() {
     const jvm = readJVMSettings();
     let args = [];
-    if (jvm.minRam) args.push(`-Xms${jvm.minRam}G`);
-    if (jvm.maxRam) args.push(`-Xmx${jvm.maxRam}G`);
+    // -Xms/-Xmx sont déjà générés par MCLC via l'option memory (évite les doublons)
     if (jvm.args) args.push(...String(jvm.args).trim().split(/\s+/).filter(Boolean));
     return args;
 }
@@ -1182,6 +1189,15 @@ async function restoreSavedAuthProfile() {
         // Nouveau format: activeAuths = { crack: {...}, microsoft: {...}, discord: {...} }
         if (savedData.crack || savedData.microsoft || savedData.ely || savedData.discord) {
             activeAuths = savedData;
+            // Réparer les entrées crack: nom manquant et session de lancement non restaurée
+            if (activeAuths.crack && activeAuths.crack.pseudo) {
+                const crackPseudo = String(activeAuths.crack.pseudo).trim();
+                if (!activeAuths.crack.name) activeAuths.crack.name = crackPseudo || 'Joueur';
+                if (!userAuth && crackPseudo) {
+                    userAuth = Authenticator.getAuth(crackPseudo);
+                    currentAuthType = 'crack';
+                }
+            }
             // Retourner le premier auth actif
             const firstAuthType = Object.keys(activeAuths)[0];
             if (firstAuthType) {
@@ -3230,8 +3246,8 @@ ipcMain.on('launch-game', async (event, useForge = false) => {
 
         // Integrate JVM settings from improvement #2
         const jvmSettings = readJVMSettings();
-        const memoryMaxGb = jvmSettings.maxRam || launcherSettings.minecraftRamGb;
-        const memoryMinGb = jvmSettings.minRam || Math.max(1, Math.min(memoryMaxGb - 1, Math.floor(memoryMaxGb / 2)));
+        const memoryMaxGb = Math.min(32, Math.max(1, Number(jvmSettings.maxRam) || launcherSettings.minecraftRamGb));
+        const memoryMinGb = Math.min(memoryMaxGb, Math.max(1, Number(jvmSettings.minRam) || Math.floor(memoryMaxGb / 2)));
 
         const baseOpts = {
             clientPackage: null,

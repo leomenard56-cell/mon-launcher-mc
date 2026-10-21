@@ -1,6 +1,6 @@
 {
-  "version": "1.0.46",
-  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.46/KuroVerse-Setup-1.0.46.exe",
-  "notes": "Fix critique: le launcher ne démarrait plus (données de jeu embarquées dans le package). Taille de l'installateur réduite de 1,5 Go à ~250 Mo."
+  "version": "1.0.47",
+  "downloadUrl": "https://github.com/leomenard56-cell/mon-launcher-mc/releases/download/v1.0.47/KuroVerse-Setup-1.0.47.exe",
+  "notes": "Fix critique: le jeu plantait au lancement (RAM allouée en Go au lieu de Mo: -Xmx4096G). Fix: restauration de session hors-ligne."
 }
 
