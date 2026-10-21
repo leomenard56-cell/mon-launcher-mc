@@ -1,6 +1,6 @@
 {
   "name": "mon-launcher-mc",
-  "version": "1.0.45",
+  "version": "1.0.46",
   "description": "Launcher Minecraft personnalisé avec support moddé et connexion Microsoft",
   "main": "main.js",
   "scripts": {
@@ -36,7 +36,17 @@
       "**/*",
       "!node_modules/**/*.md",
       "!node_modules/**/test/**",
-      "!mods/**"
+      "!mods/**",
+      "!.mon-launcher/**",
+      "!.git/**",
+      "!dist/**",
+      "!main.secrets.json",
+      "!owner_curseforge_key.txt",
+      "!electron-builder.yml",
+      "!update.json",
+      "!*.ps1",
+      "!*.txt",
+      "!_tmp_*"
     ],
     "directories": {
       "output": "dist"

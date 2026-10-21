@@ -12,6 +12,15 @@ const archiver = require('archiver');
 const { Client, Authenticator } = require('minecraft-launcher-core');
 const { Auth } = require('msmc');
 
+// Journalise les erreurs fatales du processus principal (diagnostic des builds packagés)
+const crashLogPath = path.join(os.tmpdir(), 'kuroverse-crash.log');
+process.on('uncaughtException', (err) => {
+    try { fs.appendFileSync(crashLogPath, `[${new Date().toISOString()}] uncaughtException: ${err && err.stack ? err.stack : err}\n`); } catch (_) { }
+});
+process.on('unhandledRejection', (reason) => {
+    try { fs.appendFileSync(crashLogPath, `[${new Date().toISOString()}] unhandledRejection: ${reason && reason.stack ? reason.stack : reason}\n`); } catch (_) { }
+});
+
 const launcher = new Client();
 let mainWindow;
 let userAuth = null;
